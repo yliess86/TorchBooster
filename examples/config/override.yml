@@ -1,0 +1,7 @@
+#include base.yml
+
+loader:
+    batch_size: 8
+
+scheduler:
+   phases: cos, cos
