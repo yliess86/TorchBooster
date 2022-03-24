@@ -101,8 +101,13 @@ def resolve_types(conf: BaseConfig, data: dict(str, Any)) -> dict(str, Any):
             subfields = zip(field_subptypes, field_data)
             field_data = (subptype(datum) for subptype, datum in subfields)
         
-        try: field_type = getattr(builtins, field_type)
-        except AttributeError: field_type = globals()[field_type]
+        try: field_type = builtins.__dict__[field_type]
+        except KeyError:
+            try: field_type = globals()[field_type]
+            except KeyError:
+                subclasses = BaseConfig.__subclasses__()
+                idx = [cls.__name__ for cls in subclasses].index(field_type)
+                field_type = subclasses[idx]
         
         if issubclass(field_type, BaseConfig):
             field_data = resolve_types(field_type, field_data)

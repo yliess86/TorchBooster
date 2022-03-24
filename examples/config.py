@@ -20,7 +20,7 @@ class DatasetConfig(BaseConfig):
 @dataclass
 class Config(BaseConfig):
     env: EnvironementConfig
-    # dataset: DatasetConfig   #TODO Fix Type Evaluation
+    dataset: DatasetConfig
     loader: LoaderConfig
     optim: OptimizerConfig
     scheduler: SchedulerConfig
