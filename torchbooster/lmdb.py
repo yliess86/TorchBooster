@@ -20,7 +20,7 @@ class LMDBReader:
     ----------
     path: str
         path to the lmdb dataset
-    map_size, max_readers: int
+    map_size, max_readers: int (default: 1024 ** 4, 126)
         maximum allowed database size
         maximum amount of simultaneous read transactions
 
