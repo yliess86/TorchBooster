@@ -53,8 +53,8 @@ def seed(value: int) -> None:
 def step(
     loss: Tensor,
     optimizer: Optimizer,
-    scheduler: BaseScheduler,
-    scaler: GradScaler,
+    scheduler: BaseScheduler = None,
+    scaler: GradScaler = None,
     clip: int = None,
 ) -> None:
     """Step
@@ -68,19 +68,25 @@ def step(
         loss to minimize
     optimizer: Optimizer
         model optimizer
-    scheduler: BaseScheduler
+    scheduler: BaseScheduler (default: None)
         learning rate scheduler
-    scaler: GradScaler
+    scaler: GradScaler (default: None)
         gradient scaler for mixed precision
     clip: int (default: None)
         gradient norm clipping value if not None
     """
     optimizer.zero_grad(set_to_none=True)
-    scaler.scale(loss).backward()
+    
+    if scaler is not None: scaler.scale(loss).backward()
+    else: loss.backward()
+    
     if clip is not None:
-        scaler.unscale_(optimizer)
+        if scaler is not None: scaler.unscale_(optimizer)
         for group in optimizer.param_groups:
             clip_grad_norm_(group["params"], max_norm=clip)
-    scaler.step(optimizer)
-    scheduler.step()
-    scaler.update()
+    
+    if scaler is not None: scaler.step(optimizer)
+    else: optimizer.step()
+    
+    if scheduler is not None: scheduler.step()
+    if scaler is not None: scaler.update()
