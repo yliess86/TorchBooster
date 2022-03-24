@@ -99,7 +99,7 @@ def resolve_types(conf: BaseConfig, data: dict(str, Any)) -> dict(str, Any):
             field_subptypes = map(lambda t: t.strip(), cycle(field_subptypes))
             field_subptypes = map(lambda t: getattr(builtins, t), field_subptypes)
             subfields = zip(field_subptypes, field_data)
-            field_data = (subptype(datum) for subptype, datum in subfields)
+            field_data = (subptype(datum.strip()) for subptype, datum in subfields)
         
         try: field_type = builtins.__dict__[field_type]
         except KeyError:
@@ -162,7 +162,9 @@ class EnvironementConfig(BaseConfig):
     distributed: bool = False
     fp16: bool = False
     n_gpu: int = 0
-    seed: int = 42
+    n_machine: int = 1
+    machine_rank: int = 0
+    dist_url: str = "auto"
 
 
 @dataclass
@@ -212,7 +214,7 @@ class OptimizerConfig(BaseConfig):
     
     # Common Hyperparams
     lr: float
-    weight_decay: float = 0.0
+    weight_decay: float = 1e-2
 
     # SGD Hyperparams
     momentum: float = 0.0
@@ -222,7 +224,6 @@ class OptimizerConfig(BaseConfig):
     # AdamW Hyperparams
     betas: tuple(float, float) = (0.9, 0.999)
     eps: float = 1e-8
-    weight_decay: float = 1e-2
     amsgrad: bool = False
 
     def make(self, parameters: Iterator[Parameter]) -> Optimizer:
@@ -277,7 +278,7 @@ class SchedulerConfig(BaseConfig):
         if self.name == "cycle":
             return CycleScheduler(
                 optimizer,
-                next(optimizer.param_groups)["lr"],
+                optimizer.param_groups[0]["lr"],
                 self.n_iter,
                 self.initial_multiplier,
                 self.final_multiplier,
