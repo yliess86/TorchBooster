@@ -29,10 +29,10 @@ def anneal_flat(a, b, t) -> float:
 
 
 PHASE_2_FUN = {
-    "linear": anneal_linear,
-    "cos"   : anneal_cos,
-    "exp"   : anneal_exp,
-    "flat"  : anneal_flat,
+    "lin" : anneal_linear,
+    "cos" : anneal_cos,
+    "exp" : anneal_exp,
+    "flat": anneal_flat,
 }
 
 
