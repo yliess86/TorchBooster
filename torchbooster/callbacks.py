@@ -127,3 +127,9 @@ class SaveCallback(BaseCallback):
                 key: try_extract_state_dict(value)
                 for key, value in kwargs.items()
             }, self.path)
+
+
+__all__ = [
+    BaseCallback,
+    SaveCallback,
+]
