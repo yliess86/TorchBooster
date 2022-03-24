@@ -13,6 +13,8 @@ from torch.optim import Optimizer
 from torch.cuda.amp.grad_scaler import GradScaler
 from torchbooster.scheduler import BaseScheduler
 
+import numpy as np
+import random
 import torch
 
 
@@ -31,6 +33,21 @@ def boost(enable: bool = True) -> None:
     torch.autograd.profiler.profile(enabled=not enable)
     torch.autograd.profiler.emit_nvtx(enabled=not enable)
     torch.autograd.set_detect_anomaly(mode=not enable)
+
+
+def seed(value: int) -> None:
+    """Seed
+    
+    Set seed for random, numpy, and pytorch pseudo-random generators (PGN).
+
+    Parameters
+    ----------
+    value: int
+        seed value to pass to every PGN
+    """
+    random.seed(value)
+    np.random.seed(value)
+    torch.manual_seed(value)
 
 
 def step(
