@@ -14,6 +14,7 @@ from torch.cuda.amp.grad_scaler import GradScaler
 from torchbooster.scheduler import BaseScheduler
 
 import numpy as np
+import os
 import random
 import torch
 
@@ -48,6 +49,9 @@ def seed(value: int) -> None:
     random.seed(value)
     np.random.seed(value)
     torch.manual_seed(value)
+
+    os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
+    torch.use_deterministic_algorithms(True)
 
 
 def step(
