@@ -8,6 +8,7 @@ training code for PyTorch.
 from __future__ import annotations
 
 from torch import Tensor
+from torch.nn import Module
 from torch.nn.utils.clip_grad import clip_grad_norm_
 from torch.optim import Optimizer
 from torch.cuda.amp.grad_scaler import GradScaler
@@ -52,6 +53,26 @@ def seed(value: int) -> None:
 
     os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
     torch.use_deterministic_algorithms(True)
+
+
+def freeze(module: Module) -> Module:
+    """Freeze
+    
+    Freeze module's parameters (grad to False).
+
+    Parameters
+    ----------
+    module: Module
+        module to freeze
+
+    Returns
+    -------
+    module: Module
+        module with freezed parameters
+    """
+    for param in module.parameters():
+        param.requires_grad = False
+    return module
 
 
 def step(
