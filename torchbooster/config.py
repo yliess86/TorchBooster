@@ -9,7 +9,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from itertools import cycle
 from pathlib import Path
-from torch.nn import Parameter
+from torch import Tensor
+from torch.nn import (Module, Parameter)
+from torch.nn.parallel import DistributedDataParallel
 from torch.optim import (AdamW, Optimizer, SGD)
 from torch.utils.data import (DataLoader, Dataset)
 from torchbooster.scheduler import (BaseScheduler, CycleScheduler)
@@ -119,6 +121,34 @@ def resolve_types(conf: BaseConfig, data: dict(str, Any)) -> dict(str, Any):
     return fields
 
 
+def to_env(value: Any, cuda: bool, distributed: bool) -> Any:
+    """To Env
+    
+    Put variable to environement (cuda if cuda and distributed if dsitributed).
+
+    Parameters
+    ----------
+    value: Any
+        if Tensor or Module will apply environement transforms else none
+    cuda, distributed: bool
+        put or not variable to cuda device
+        wrap or not module to DistributedDataParallel
+
+    Return
+    ------
+    value: Any
+        if value is Tensor a Tensor
+        if value is Module, a Module or DistributedDataParallel
+        else input value
+    """
+    if isinstance(value, Tensor):
+        value: Tensor = value.to("cuda" if cuda else "cpu")
+    if isinstance(value, Module):
+        value: Module = value.to("cuda" if cuda else "cpu")
+        if distributed: value = DistributedDataParallel(value)
+    return value
+
+
 @dataclass
 class BaseConfig:
     """Base Config
@@ -166,6 +196,25 @@ class EnvironementConfig(BaseConfig):
     n_machine: int = 1
     machine_rank: int = 0
     dist_url: str = "auto"
+
+    def make(self, *args: list(Any)) -> Any:
+        """Make
+        
+        Parameters
+        ----------
+        args: list(Any)
+            any object to apply environement transformations
+            (send to cuda device, distributed wrapper, ...)
+
+        Returns
+        -------
+        args: list(Any)
+            list transformed objects
+            transformed object if only one is given
+        """
+        to = lambda x: to_env(x, self.n_gpu > 0, self.distributed)
+        if len(args) == 1: return to(args[0])
+        return [to(arg) for arg in args]
 
 
 @dataclass

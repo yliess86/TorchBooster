@@ -5,7 +5,6 @@ from pathlib import Path
 from torch.cuda.amp.grad_scaler import GradScaler
 from torch.nn import (BatchNorm2d, Conv2d, Flatten, GELU, Linear, MaxPool2d, Module, Sequential)
 from torch.nn.functional import cross_entropy
-from torch.nn.parallel import DistributedDataParallel
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from torchbooster.metrics import (accuracy, RunningAverage)
@@ -50,14 +49,13 @@ def step(
     scheduler: BaseScheduler,
     scaler: GradScaler,
     loader: DataLoader,
-    device: str,
     train: bool,
 ) -> None:
     lenet.train(train)
     with tqdm(loader, desc="Train" if train else "Test") as pbar:
         run_loss, run_acc = RunningAverage(), RunningAverage()
         for X, labels in pbar:
-            X, labels = X.to(device), labels.to(device)
+            X, labels = conf.env.make(X, labels)
             
             logits = lenet(X)
             loss = cross_entropy(logits, labels)
@@ -78,13 +76,12 @@ def fit(
     scaler: GradScaler,
     train_loader: DataLoader,
     test_loader: DataLoader,
-    device: str,
 ) -> None:
     for _ in tqdm(range(conf.epochs), desc="Epoch"):
-        step(lenet, optim, scheduler, scaler, train_loader, device, train=True)
+        step(lenet, optim, scheduler, scaler, train_loader, train=True)
 
     if dist.is_primary():
-        step(lenet, optim, scheduler, scaler, test_loader, device, train=False)
+        step(lenet, optim, scheduler, scaler, test_loader, train=False)
 
 
 def main(conf: Config) -> None:
@@ -96,16 +93,12 @@ def main(conf: Config) -> None:
     test_set = MNIST("/tmp/mnist/test", train=False, transform=test_transform, download=True)
     test_loader = conf.loader.make(test_set, shuffle=False, distributed=conf.env.distributed)
 
-    device = "cuda" if conf.env.n_gpu > 0 else "cpu"
-    lenet = LeNet.to(device)
-    if conf.env.distributed:
-        lenet = DistributedDataParallel(lenet)
-    
+    lenet = conf.env.make(LeNet)    
     optim = conf.optim.make(lenet.parameters())
     scheduler = conf.scheduler.make(optim)
     scaler = GradScaler(enabled=conf.env.fp16)
 
-    fit(conf, lenet, optim, scheduler, scaler, train_loader, test_loader, device)
+    fit(conf, lenet, optim, scheduler, scaler, train_loader, test_loader)
 
 
 if __name__ == "__main__":
