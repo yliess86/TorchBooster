@@ -33,7 +33,7 @@ LeNet = Sequential(
     Linear(120,  84), GELU(),
     Linear( 84,  10),
 )
-    
+
 
 @dataclass
 class Config(BaseConfig):
@@ -90,13 +90,11 @@ def fit(
 def main(conf: Config) -> None:
     train_transform = T.Compose([T.RandAugment(), T.ToTensor()])
     train_set = MNIST("/tmp/mnist/train", train=True, transform=train_transform, download=True)
-    train_sampler = dist.data_sampler(train_set, shuffle=True, distributed=conf.env.distributed)
-    train_loader = conf.loader.make(train_set, train_sampler)
+    train_loader = conf.loader.make(train_set, shuffle=True, distributed=conf.env.distributed)
 
     test_transform = T.ToTensor()
     test_set = MNIST("/tmp/mnist/test", train=False, transform=test_transform, download=True)
-    test_sampler = dist.data_sampler(test_set, shuffle=False, distributed=conf.env.distributed)
-    test_loader = conf.loader.make(test_set, test_sampler)
+    test_loader = conf.loader.make(test_set, shuffle=False, distributed=conf.env.distributed)
 
     device = "cuda" if conf.env.n_gpu > 0 else "cpu"
     lenet = LeNet.to(device)

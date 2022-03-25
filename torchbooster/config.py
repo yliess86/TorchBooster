@@ -11,11 +11,12 @@ from itertools import cycle
 from pathlib import Path
 from torch.nn import Parameter
 from torch.optim import (AdamW, Optimizer, SGD)
-from torch.utils.data import (DataLoader, Dataset, Sampler)
+from torch.utils.data import (DataLoader, Dataset)
 from torchbooster.scheduler import (BaseScheduler, CycleScheduler)
 from typing import (Any, Iterator)
 
 import builtins
+import torchbooster.distributed as dist
 import yaml
 
 
@@ -178,21 +179,29 @@ class LoaderConfig(BaseConfig):
     pin_memory: bool = False
     drop_last: bool = False
 
-    def make(self, dataset: Dataset, sampler: Sampler) -> DataLoader:
+    def make(
+        self,
+        dataset: Dataset,
+        shuffle: bool = False,
+        distributed: bool = False,
+    ) -> DataLoader:
         """Make
 
         Parameters
         ----------
         dataset: Dataset
             dataset to iterate on
-        sampler: Sampler
-            dataset sampler
+        shuffle, distributed: bool (default: False, False)
+            shuffle or not
+            distributed or not
 
         Returns
         -------
         loader: DataLoader
             dataset batch loader
         """
+        sampler = dist.data_sampler(dataset, shuffle, distributed)
+
         return DataLoader(
             dataset,
             self.batch_size,
