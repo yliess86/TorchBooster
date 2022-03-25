@@ -1,4 +1,5 @@
 from __future__ import annotations
+from tabnanny import verbose
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -44,6 +45,7 @@ class Config(BaseConfig):
 
 
 def step(
+    conf: Config,
     lenet: Module,
     optim: Optimizer,
     scheduler: BaseScheduler,
@@ -52,7 +54,7 @@ def step(
     train: bool,
 ) -> None:
     lenet.train(train)
-    with tqdm(loader, desc="Train" if train else "Test") as pbar:
+    with tqdm(loader, desc="Train" if train else "Test", disable=not dist.is_primary()) as pbar:
         run_loss, run_acc = RunningAverage(), RunningAverage()
         for X, labels in pbar:
             X, labels = conf.env.make(X, labels)
@@ -77,11 +79,11 @@ def fit(
     train_loader: DataLoader,
     test_loader: DataLoader,
 ) -> None:
-    for _ in tqdm(range(conf.epochs), desc="Epoch"):
-        step(lenet, optim, scheduler, scaler, train_loader, train=True)
+    for _ in tqdm(range(conf.epochs), desc="Epoch", disable=not dist.is_primary()):
+        step(conf, lenet, optim, scheduler, scaler, train_loader, train=True)
 
     if dist.is_primary():
-        step(lenet, optim, scheduler, scaler, test_loader, train=False)
+        step(conf, lenet, optim, scheduler, scaler, test_loader, train=False)
 
 
 def main(conf: Config) -> None:
