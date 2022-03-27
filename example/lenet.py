@@ -11,6 +11,8 @@ from torch.utils.data import DataLoader
 from torchbooster.metrics import (accuracy, RunningAverage)
 from torchbooster.config import (
     BaseConfig,
+    DatasetConfig,
+    DatasetFraction,
     EnvironementConfig,
     LoaderConfig,
     OptimizerConfig,
@@ -42,6 +44,7 @@ class Config(BaseConfig):
     loader: LoaderConfig
     optim: OptimizerConfig
     scheduler: SchedulerConfig
+    dataset: DatasetConfig
 
 
 def step(
@@ -88,11 +91,11 @@ def fit(
 
 def main(conf: Config) -> None:
     train_transform = T.Compose([T.RandAugment(), T.ToTensor()])
-    train_set = MNIST("/tmp/mnist/train", train=True, transform=train_transform, download=True)
+    train_set    = conf.dataset.make(fraction=DatasetFraction.TRAIN, transform=train_transform)
     train_loader = conf.loader.make(train_set, shuffle=True, distributed=conf.env.distributed)
 
     test_transform = T.ToTensor()
-    test_set = MNIST("/tmp/mnist/test", train=False, transform=test_transform, download=True)
+    test_set    = conf.dataset.make(fraction=DatasetFraction.TRAIN, transform=test_transform)
     test_loader = conf.loader.make(test_set, shuffle=False, distributed=conf.env.distributed)
 
     lenet = conf.env.make(LeNet)    

@@ -7,6 +7,8 @@ to generate pytorch or other objects from yaml files.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datasets import DownloadMode, load_dataset
+from enum import Enum
 from itertools import cycle
 from pathlib import Path
 from torch import Tensor
@@ -18,7 +20,9 @@ from torchbooster.scheduler import (BaseScheduler, CycleScheduler)
 from typing import (Any, Iterator)
 
 import builtins
+import os
 import torchbooster.distributed as dist
+import torchvision
 import yaml
 
 
@@ -347,9 +351,71 @@ class SchedulerConfig(BaseConfig):
         
         raise NameError(f"Scheduler {self.name} is not supported.")
 
+class DatasetFraction(Enum):
+    TRAIN = "train"
+    EVAL  = "validation"
+    TEST  = "test"
+
+
+@dataclass
+class DatasetConfig(BaseConfig):
+    """DatasetConfig
+    
+    Used to load common dataset by name.
+    Custom datasets can use their own their own loading mechanism.
+    """
+    name: str
+    task: str = None # Some datasets have sub tasks (eg)
+
+    # Root for saving the dataset
+    root: str = './dataset'
+    download: bool = True
+
+
+    def make(self, fraction: DatasetFraction, **kwargs) -> "Dataset" :
+        """Make
+        Looks for the dataset name, downloads it if required and returns the 
+        dataset fraction described by the given dataset fraction.
+
+        Parameters
+        ----------
+        fraction: DatasetFraction
+            The fraction of the datset to return, usually train, eval or test
+        download: bool = True
+            Wether to download the dataset or not
+        kwargs: Remaning arguments are passed to the downstream dataset loader
+
+
+        Returns
+        -------
+        Dataset
+            A torch.utils.data.Dataest object or another type of datset depending on the downstream dataset loader
+        """
+        
+        # Dataset loading strategy:
+        #  Look in torchvision.datasets
+        #  Look on hugging face dataset repository
+        #  ? Custom Datset loader
+
+        try:
+            dataset = getattr(torchvision.datasets, self.name.upper())
+        except AttributeError:
+            dataset = None
+
+        if dataset is not None: # torchvision strategy
+            # root, train=True, transform=None, target_transform=None, download=False
+            is_train = (fraction is DatasetFraction.TRAIN) or fraction == "train"
+            return dataset(os.path.join(self.root, fraction.value), 
+                            train=is_train, download=self.download, **kwargs) # let the constructor throw
+
+        download_mode = DownloadMode.FORCE_REDOWNLOAD if self.download else DownloadMode.REUSE_DATASET_IF_EXISTS
+        return load_dataset(name=self.name, download_mode=download_mode, **kwargs) # let the loading throw
+
+
 
 __all__ = [
     BaseConfig,
+    DatasetConfig,
     EnvironementConfig,
     LoaderConfig,
     OptimizerConfig,

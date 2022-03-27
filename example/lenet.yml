@@ -19,3 +19,7 @@ scheduler:
   name: cycle
   n_iter: 2_340
   decay: lin, cos
+
+dataset:
+  name: mnist
+  path: /tmp/mnist
