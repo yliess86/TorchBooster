@@ -1,0 +1,22 @@
+epochs: 10
+seed: 42
+clip: 1.0
+
+env:
+    fp16: true
+    n_gpu: 1
+
+loader:
+  batch_size: 1_024
+  num_workers: 10
+  pin_memory: true
+  drop_last: true
+
+optim:
+  name: adamw
+  lr: 1e-3
+
+scheduler:
+  name: cycle
+  n_iter: 480
+  decay: lin, cos

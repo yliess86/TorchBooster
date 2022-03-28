@@ -38,6 +38,8 @@ LeNet = Sequential(
 @dataclass
 class Config(BaseConfig):
     epochs: int
+    seed: int
+
     env: EnvironementConfig
     loader: LoaderConfig
     optim: OptimizerConfig
