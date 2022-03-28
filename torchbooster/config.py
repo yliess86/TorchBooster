@@ -7,7 +7,7 @@ to generate pytorch or other objects from yaml files.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datasets import DownloadConfig, DownloadMode, load_dataset
+from datasets import DownloadMode, load_dataset
 from enum import Enum
 from itertools import cycle
 from pathlib import Path
@@ -45,7 +45,7 @@ def do_include(line: str) -> bool:
     condition: bool
         do the line contains an include directive
     """
-    return line.startswith("#include ") and line.endswith(".yml")
+    return line.startswith("#include ") and (line.endswith(".yml") or line.endswith(".yaml"))
 
 
 def read_lines(path: Path) -> list(str):
