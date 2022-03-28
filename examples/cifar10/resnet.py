@@ -97,7 +97,7 @@ def main(conf: Config) -> None:
     test_loader = conf.loader.make(test_set, shuffle=False, distributed=conf.env.distributed)
 
     resnet = resnet18(pretrained=True, progress=dist.is_primary())
-    resnet.fc = Linear(512, 10)
+    resnet.fc = Linear(resnet.fc.in_features, 10)
 
     resnet = conf.env.make(resnet)
     optim = conf.optim.make(resnet.parameters())
