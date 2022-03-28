@@ -372,9 +372,8 @@ class DatasetConfig(BaseConfig):
 
     # Root for saving the dataset
     root: str = './dataset'
-    download: bool = True
 
-    def custom_torchvision_load(self, cls: type, fraction: DatasetSplit, **kwargs) -> Dataset:
+    def custom_torchvision_load(self, cls: type, split: DatasetSplit, download: bool, **kwargs) -> Dataset:
         """Torch Vision custom dataset launch
         Used to load torchvision datasets with special arguments names
 
@@ -384,20 +383,22 @@ class DatasetConfig(BaseConfig):
             The torchvision.dataset class we want to load
         fraction : DatasetFraction
             The fraction of the dataset to load 
+        download: bool
+            Download the dataset or not
 
         Returns
         -------
         Dataset
             The loaded dataset
         """
-        fraction = fraction.value if isinstance(fraction, DatasetSplit) else fraction
+        split = split.value if isinstance(split, DatasetSplit) else split
         split_argument_name = 'split' in inspect.signature(cls.__init__).parameters
         if cls is split_argument_name:
-            return cls(root = self.dataset_path(fraction), split = fraction, download = self.download, **kwargs)
+            return cls(root = self.dataset_path(split), split = split, download = download, **kwargs)
         return None
 
 
-    def dataset_path(self, fraction: DatasetSplit) -> str:
+    def dataset_path(self, split: DatasetSplit) -> str:
         """Get the local path where the dataset is
 
         Parameters
@@ -410,18 +411,18 @@ class DatasetConfig(BaseConfig):
         str
             The path where to save or load the dataset.
         """
-        path = os.path.join(self.root, fraction.value)
+        path = os.path.join(self.root, split.value)
         logging.info(f'Dataset path is {path}')
         return path
 
-    def make(self, fraction: DatasetSplit, **kwargs) -> "Dataset" :
+    def make(self, split: DatasetSplit, download: bool = True, **kwargs) -> "Dataset" :
         """Make
         Looks for the dataset name, downloads it if required and returns the 
         dataset fraction described by the given dataset fraction.
 
         Parameters
         ----------
-        fraction: DatasetFraction
+        split: DatasetFraction
             The fraction of the datset to return, usually train, eval or test
         download: bool = True
             Wether to download the dataset or not
@@ -447,18 +448,18 @@ class DatasetConfig(BaseConfig):
         if dataset is not None: # torchvision strategy
             # root, train=True, transform=None, target_transform=None, download=False
 
-            special_torchvision = self.custom_torchvision_load(dataset, fraction, **kwargs)
+            special_torchvision = self.custom_torchvision_load(dataset, split, download = download, **kwargs)
             if special_torchvision: return special_torchvision
 
-            is_train = (fraction is DatasetSplit.TRAIN) or fraction == "train" # if argument type is disregarded and str is used instead
-            return dataset(root=self.dataset_path(fraction), 
-                            train=is_train, download=self.download, **kwargs) # let the constructor throw
+            is_train = (split is DatasetSplit.TRAIN) or split == "train" # if argument type is disregarded and str is used instead
+            return dataset(root=self.dataset_path(split), 
+                            train=is_train, download=download, **kwargs) # let the constructor throw
 
-        download_mode = DownloadMode.FORCE_REDOWNLOAD if self.download else DownloadMode.REUSE_DATASET_IF_EXISTS
+        download_mode = DownloadMode.FORCE_REDOWNLOAD if download else DownloadMode.REUSE_DATASET_IF_EXISTS
         try:
             if self.task: # Load dataset with task name
-                return load_dataset(self.name, self.task, download_mode=download_mode, cache_dir=self.dataset_path(fraction), **kwargs)
-            return load_dataset(self.name, download_mode=download_mode, cache_dir=self.dataset_path(fraction), **kwargs) # let the loading throw
+                return load_dataset(self.name, self.task, download_mode=download_mode, cache_dir=self.dataset_path(split), **kwargs)
+            return load_dataset(self.name, download_mode=download_mode, cache_dir=self.dataset_path(split), **kwargs) # let the loading throw
         except FileNotFoundError:
             traceback.print_exc()
             logging.error("Could not find dataset in the default locations, looked in torch vision and HuggingFace repo")

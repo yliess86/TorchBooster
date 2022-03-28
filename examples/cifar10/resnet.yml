@@ -20,3 +20,7 @@ scheduler:
   name: cycle
   n_iter: 480
   decay: lin, cos
+
+dataset:
+  name: cifar10
+  root: /tmp/dataset/cifar10
