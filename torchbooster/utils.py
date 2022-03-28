@@ -12,7 +12,9 @@ from torch.nn import Module
 from torch.nn.utils.clip_grad import clip_grad_norm_
 from torch.optim import Optimizer
 from torch.cuda.amp.grad_scaler import GradScaler
+from torch.utils.data import DataLoader
 from torchbooster.scheduler import BaseScheduler
+from typing import (Any, Iterator)
 
 import numpy as np
 import os
@@ -73,6 +75,35 @@ def freeze(module: Module) -> Module:
     for param in module.parameters():
         param.requires_grad = False
     return module
+
+
+def iter_loader(loader: DataLoader) -> Iterator[int, Any]:
+    """Iter Loader
+    
+    Infinite iterator for DataLoader.
+    Enable the expression of training by num_iter instead of num_epochs.
+    https://twitter.com/karpathy/status/1508437725514510336
+
+    Parameters
+    ----------
+    loader: DataLoader
+        data loader
+
+    Returns
+    -------
+    iterator: Iterator[int, Any]
+        iterator wrapping the dataloader
+        returns the current epoch and the dataloader next output
+    """
+    iterator = iter(loader)
+    epoch = 0
+
+    while True:
+        try: yield epoch, next(iterator)
+        except StopIteration:
+            iterator = iter(loader)
+            epoch += 1
+            yield epoch, next(iterator)
 
 
 def step(
