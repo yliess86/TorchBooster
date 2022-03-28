@@ -12,7 +12,7 @@ from torchbooster.metrics import (accuracy, RunningAverage)
 from torchbooster.config import (
     BaseConfig,
     DatasetConfig,
-    DatasetFraction,
+    DatasetSplit,
     EnvironementConfig,
     LoaderConfig,
     OptimizerConfig,
@@ -91,11 +91,11 @@ def fit(
 
 def main(conf: Config) -> None:
     train_transform = T.Compose([T.RandAugment(), T.ToTensor()])
-    train_set    = conf.dataset.make(fraction=DatasetFraction.TRAIN, transform=train_transform)
+    train_set    = conf.dataset.make(fraction=DatasetSplit.TRAIN, transform=train_transform)
     train_loader = conf.loader.make(train_set, shuffle=True, distributed=conf.env.distributed)
 
     test_transform = T.ToTensor()
-    test_set    = conf.dataset.make(fraction=DatasetFraction.TRAIN, transform=test_transform)
+    test_set    = conf.dataset.make(fraction=DatasetSplit.TEST, transform=test_transform)
     test_loader = conf.loader.make(test_set, shuffle=False, distributed=conf.env.distributed)
 
     lenet = conf.env.make(LeNet)    

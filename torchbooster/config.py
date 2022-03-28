@@ -7,7 +7,7 @@ to generate pytorch or other objects from yaml files.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datasets import DownloadMode, load_dataset
+from datasets import DownloadConfig, DownloadMode, load_dataset
 from enum import Enum
 from itertools import cycle
 from pathlib import Path
@@ -20,9 +20,12 @@ from torchbooster.scheduler import (BaseScheduler, CycleScheduler)
 from typing import (Any, Iterator)
 
 import builtins
+import inspect
 import os
 import torchbooster.distributed as dist
 import torchvision
+import traceback
+import logging
 import yaml
 
 
@@ -351,7 +354,7 @@ class SchedulerConfig(BaseConfig):
         
         raise NameError(f"Scheduler {self.name} is not supported.")
 
-class DatasetFraction(Enum):
+class DatasetSplit(Enum):
     TRAIN = "train"
     EVAL  = "validation"
     TEST  = "test"
@@ -371,8 +374,47 @@ class DatasetConfig(BaseConfig):
     root: str = './dataset'
     download: bool = True
 
+    def custom_torchvision_load(self, cls: type, fraction: DatasetSplit, **kwargs) -> Dataset:
+        """Torch Vision custom dataset launch
+        Used to load torchvision datasets with special arguments names
 
-    def make(self, fraction: DatasetFraction, **kwargs) -> "Dataset" :
+        Parameters
+        ----------
+        cls : Class
+            The torchvision.dataset class we want to load
+        fraction : DatasetFraction
+            The fraction of the dataset to load 
+
+        Returns
+        -------
+        Dataset
+            The loaded dataset
+        """
+        fraction = fraction.value if isinstance(fraction, DatasetSplit) else fraction
+        split_argument_name = 'split' in inspect.signature(cls.__init__).parameters
+        if cls is split_argument_name:
+            return cls(root = self.dataset_path(fraction), split = fraction, download = self.download, **kwargs)
+        return None
+
+
+    def dataset_path(self, fraction: DatasetSplit) -> str:
+        """Get the local path where the dataset is
+
+        Parameters
+        ----------
+        fraction : DatasetPlit
+            The current split in use
+
+        Returns
+        -------
+        str
+            The path where to save or load the dataset.
+        """
+        path = os.path.join(self.root, fraction.value)
+        logging.info(f'Dataset path is {path}')
+        return path
+
+    def make(self, fraction: DatasetSplit, **kwargs) -> "Dataset" :
         """Make
         Looks for the dataset name, downloads it if required and returns the 
         dataset fraction described by the given dataset fraction.
@@ -404,13 +446,22 @@ class DatasetConfig(BaseConfig):
 
         if dataset is not None: # torchvision strategy
             # root, train=True, transform=None, target_transform=None, download=False
-            is_train = (fraction is DatasetFraction.TRAIN) or fraction == "train"
-            return dataset(os.path.join(self.root, fraction.value), 
+
+            special_torchvision = self.custom_torchvision_load(dataset, fraction, **kwargs)
+            if special_torchvision: return special_torchvision
+
+            is_train = (fraction is DatasetSplit.TRAIN) or fraction == "train" # if argument type is disregarded and str is used instead
+            return dataset(root=self.dataset_path(fraction), 
                             train=is_train, download=self.download, **kwargs) # let the constructor throw
 
         download_mode = DownloadMode.FORCE_REDOWNLOAD if self.download else DownloadMode.REUSE_DATASET_IF_EXISTS
-        return load_dataset(name=self.name, download_mode=download_mode, **kwargs) # let the loading throw
-
+        try:
+            if self.task: # Load dataset with task name
+                return load_dataset(self.name, self.task, download_mode=download_mode, cache_dir=self.dataset_path(fraction), **kwargs)
+            return load_dataset(self.name, download_mode=download_mode, cache_dir=self.dataset_path(fraction), **kwargs) # let the loading throw
+        except FileNotFoundError:
+            traceback.print_exc()
+            logging.error("Could not find dataset in the default locations, looked in torch vision and HuggingFace repo")
 
 
 __all__ = [

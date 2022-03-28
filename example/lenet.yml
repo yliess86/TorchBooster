@@ -21,5 +21,5 @@ scheduler:
   decay: lin, cos
 
 dataset:
-  name: mnist
-  path: /tmp/mnist
+  name: cifar10
+  root: /tmp/dataset
