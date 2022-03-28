@@ -5,6 +5,10 @@ env:
   fp16: true
   n_gpu: 1
 
+dataset:
+  name: mnist
+  root: /tmp/mnist
+
 loader:
   batch_size: 256
   num_workers: 10
