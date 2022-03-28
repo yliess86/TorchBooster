@@ -30,6 +30,7 @@ class Config(BaseConfig):
     epochs: int
     seed: int
     clip: float
+    label_smoothing: float
 
     env: EnvironementConfig
     loader: LoaderConfig
@@ -53,7 +54,7 @@ def step(
             X, labels = conf.env.make(X, labels)
             
             logits = resnet(X)
-            loss = cross_entropy(logits, labels)
+            loss = cross_entropy(logits, labels, label_smoothing=conf.label_smoothing)
             acc = accuracy(logits, labels)
 
             if train: utils.step(loss, optim, scheduler=scheduler, scaler=scaler, clip=conf.clip)
@@ -88,7 +89,14 @@ def main(conf: Config) -> None:
     download = dist.is_primary()
     normalize = T.Normalize(mean=(0.4914, 0.4822, 0.4465), std=(0.2023, 0.1994, 0.2010), inplace=True)
 
-    train_transform = T.Compose([T.RandomCrop(32, 4, padding_mode="reflect"), T.RandomHorizontalFlip(), T.RandomRotation(15), T.ToTensor(), normalize])
+    train_transform = T.Compose([
+        T.RandomCrop(32, 4, padding_mode="reflect"),
+        T.RandomHorizontalFlip(),
+        T.RandomRotation(15),
+        T.RandAugment(),
+        T.ToTensor(),
+        normalize,
+    ])
     train_set = CIFAR10("/tmp/cifar10/train", train=True, transform=train_transform, download=download)
     train_loader = conf.loader.make(train_set, shuffle=True, distributed=conf.env.distributed)
 

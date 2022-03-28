@@ -1,22 +1,25 @@
-epochs: 10
+epochs: 100
 seed: 42
 clip: 1.0
+label_smoothing: 0.1
 
 env:
-    fp16: true
-    n_gpu: 1
+  fp16: true
+  n_gpu: 1
 
 loader:
-  batch_size: 1_024
-  num_workers: 10
+  batch_size: 2_048
+  num_workers: 12
   pin_memory: true
   drop_last: true
 
 optim:
   name: adamw
   lr: 1e-3
+  weight_decay: 1e-2
 
 scheduler:
   name: cycle
-  n_iter: 480
+  n_iter: 2_400
+  warmup: 240
   decay: lin, cos

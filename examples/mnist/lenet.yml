@@ -2,8 +2,8 @@ epochs: 10
 seed: 42
 
 env:
-    fp16: true
-    n_gpu: 1
+  fp16: true
+  n_gpu: 1
 
 loader:
   batch_size: 256
