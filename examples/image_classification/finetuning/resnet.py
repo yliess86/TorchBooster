@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from torch.cuda.amp import autocast
 from torch.cuda.amp.grad_scaler import GradScaler
 from torch.nn import (Linear, Module)
 from torch.nn.functional import cross_entropy
@@ -55,9 +56,10 @@ def step(
         for X, labels in pbar:
             X, labels = conf.env.make(X, labels)
             
-            logits = resnet(X)
-            loss = cross_entropy(logits, labels, label_smoothing=conf.label_smoothing)
-            acc = accuracy(logits, labels)
+            with autocast(conf.env.fp16):
+                logits = resnet(X)
+                loss = cross_entropy(logits, labels, label_smoothing=conf.label_smoothing)
+                acc = accuracy(logits, labels)
 
             if train: utils.step(loss, optim, scheduler=scheduler, scaler=scaler, clip=conf.clip)
             

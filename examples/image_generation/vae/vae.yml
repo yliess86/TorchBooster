@@ -1,6 +1,7 @@
-epochs: 10
+epochs: 20
 seed: 42
 z_dim: 2
+clip: 1.0
 
 env:
   fp16: true
@@ -18,9 +19,9 @@ loader:
 
 optim:
   name: adamw
-  lr: 3e-4
+  lr: 1e-4
 
 scheduler:
   name: cycle
-  n_iter: 2_340
+  n_iter: 4_680
   decay: lin, cos
