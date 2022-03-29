@@ -1,0 +1,26 @@
+epochs: 10
+seed: 42
+z_dim: 2
+
+env:
+  fp16: true
+  n_gpu: 1
+
+dataset:
+  name: mnist
+  root: /tmp/mnist
+
+loader:
+  batch_size: 256
+  num_workers: 10
+  pin_memory: true
+  drop_last: true
+
+optim:
+  name: adamw
+  lr: 3e-4
+
+scheduler:
+  name: cycle
+  n_iter: 2_340
+  decay: lin, cos
