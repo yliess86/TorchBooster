@@ -22,7 +22,7 @@ from torch.optim import (AdamW, Optimizer, SGD)
 from torch.utils.data import (DataLoader, Dataset)
 from torchbooster.dataset import Split
 from torchbooster.scheduler import (BaseScheduler, CycleScheduler)
-from typing import (Any, Iterator)
+from typing import (Any, Iterator, TypeVar)
 
 import builtins
 import inspect
@@ -77,7 +77,7 @@ def read_lines(path: Path) -> list(str):
     return lines
 
 
-def resolve_types(conf: BaseConfig, data: dict(str, Any)) -> dict(str, Any):
+def  resolve_types(conf: BaseConfig, data: dict(str, Any)) -> dict(str, Any):
     """Resolve Types
     
     Recursively resolve types for a config given yaml loaded data.
@@ -100,7 +100,7 @@ def resolve_types(conf: BaseConfig, data: dict(str, Any)) -> dict(str, Any):
         if not field_name in data:
             continue
         
-        field_type = field.type
+        field_type = field.type if isinstance(field.type, str) else field.type.__name__
         field_data = data[field_name]
 
         if "list" in field_type or "tuple" in field_type:
@@ -129,6 +129,11 @@ def resolve_types(conf: BaseConfig, data: dict(str, Any)) -> dict(str, Any):
             fields[field_name] = field_type(**field_data)
         else:
             fields[field_name] = field_type(field_data)
+
+    dataclass_fields = conf.__dataclass_fields__.keys()
+    for elem in data.keys():
+        if not elem in dataclass_fields:
+            logging.log(level=logging.WARNING, msg=f'Extra config element {elem} for config class {conf.__name__}. This could be a configuration problem.')
 
     return fields
 
@@ -160,6 +165,7 @@ def to_env(value: Any, cuda: bool, distributed: bool) -> Any:
         if distributed: value = DistributedDataParallel(value)
     return value
 
+T = TypeVar('T')
 
 @dataclass
 class BaseConfig:
@@ -175,7 +181,7 @@ class BaseConfig:
         raise NotImplementedError("Method 'make' is not implemented")
 
     @classmethod
-    def load(cls, path: Path) -> BaseConfig:
+    def load(cls: T, path: Path) -> T:
         """Load
         
         Load configuration from a yaml file.
