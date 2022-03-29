@@ -48,8 +48,8 @@ class D(Sequential):
     def __init__(self, z_dim: int) -> None:
         self.z_dim = z_dim
         super().__init__(
-            Linear(512, self.z_dim), GELU(),
-            Linear(784, 512), Sigmoid(),
+            Linear(self.z_dim, 512), GELU(),
+            Linear(512, 784), Sigmoid(),
             Unflatten(1, (1, 28, 28)),
         )
 
