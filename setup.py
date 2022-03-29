@@ -12,4 +12,5 @@ setup(
     package_dir={"torchbooster": "torchbooster"},
     keywords=["research", "deep-learning", "reproducible-research", "python3", "pytorch"],
     license="MIT",
+    extras_require = {'huggingface_datasets':  ['datasets'], 'colored_logs': ['coloredlogs'] }
 )
