@@ -7,10 +7,10 @@ from torch.nn import (Linear, Module)
 from torch.nn.functional import cross_entropy
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
+from torchbooster.dataset import Split
 from torchbooster.metrics import (accuracy, RunningAverage)
 from torchbooster.config import (
     BaseConfig,
-    DatasetSplit,
     EnvironementConfig,
     DatasetConfig,
     LoaderConfig,
@@ -99,11 +99,11 @@ def main(conf: Config) -> None:
         T.ToTensor(),
         normalize,
     ])
-    train_set = conf.dataset.make(split=DatasetSplit.TRAIN, download=download, transform=train_transform)
+    train_set = conf.dataset.make(split=Split.TRAIN, download=download, transform=train_transform)
     train_loader = conf.loader.make(train_set, shuffle=True, distributed=conf.env.distributed)
 
     test_transform = T.Compose([T.ToTensor(), normalize])
-    test_set = conf.dataset.make(split=DatasetSplit.TEST, download=download, transform=test_transform)
+    test_set = conf.dataset.make(split=Split.TEST, download=download, transform=test_transform)
     test_loader = conf.loader.make(test_set, shuffle=False, distributed=conf.env.distributed)
 
     resnet = resnet18(pretrained=True, progress=dist.is_primary())

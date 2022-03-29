@@ -7,11 +7,11 @@ from torch.nn import (BatchNorm2d, Conv2d, Flatten, GELU, Linear, MaxPool2d, Mod
 from torch.nn.functional import cross_entropy
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
+from torchbooster.dataset import Split
 from torchbooster.metrics import (accuracy, RunningAverage)
 from torchbooster.config import (
     BaseConfig,
     DatasetConfig,
-    DatasetSplit,
     EnvironementConfig,
     LoaderConfig,
     OptimizerConfig,
@@ -91,11 +91,11 @@ def fit(
 
 def main(conf: Config) -> None:
     train_transform = T.Compose([T.RandAugment(), T.ToTensor()])
-    train_set = conf.dataset.make(split=DatasetSplit.TRAIN, transform=train_transform)
+    train_set = conf.dataset.make(split=Split.TRAIN, transform=train_transform)
     train_loader = conf.loader.make(train_set, shuffle=True, distributed=conf.env.distributed)
 
     test_transform = T.ToTensor()
-    test_set = conf.dataset.make(split=DatasetSplit.TEST, transform=test_transform)
+    test_set = conf.dataset.make(split=Split.TEST, transform=test_transform)
     test_loader = conf.loader.make(test_set, shuffle=False, distributed=conf.env.distributed)
 
     lenet = conf.env.make(LeNet)    

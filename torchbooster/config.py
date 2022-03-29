@@ -6,9 +6,13 @@ to generate pytorch or other objects from yaml files.
 """
 from __future__ import annotations
 
+try:
+    from datasets import (DownloadConfig, DownloadMode, load_dataset)
+    HUGGINGFACE_DATASETS_AVAILABLE = True
+except ImportError:
+    HUGGINGFACE_DATASETS_AVAILABLE = False
+
 from dataclasses import dataclass
-from datasets import (DownloadConfig, DownloadMode, load_dataset)
-from enum import Enum
 from itertools import cycle
 from pathlib import Path
 from torch import Tensor
@@ -16,6 +20,7 @@ from torch.nn import (Module, Parameter)
 from torch.nn.parallel import DistributedDataParallel
 from torch.optim import (AdamW, Optimizer, SGD)
 from torch.utils.data import (DataLoader, Dataset)
+from torchbooster.dataset import Split
 from torchbooster.scheduler import (BaseScheduler, CycleScheduler)
 from typing import (Any, Iterator)
 
@@ -355,79 +360,38 @@ class SchedulerConfig(BaseConfig):
         raise NameError(f"Scheduler {self.name} is not supported.")
 
 
-class DatasetSplit(Enum):
-    TRAIN = "train"
-    VALID = "validation"
-    TEST  = "test"
-
-
 @dataclass
 class DatasetConfig(BaseConfig):
     """DatasetConfig
     
     Used to load common dataset by name.
-    Custom datasets can use their own their own loading mechanism.
+    Custom datasets can use their own loading mechanism.
     """
     name: str
-    task: str = None # Some datasets have sub tasks (eg)
-
-    # Root for saving the dataset
     root: str = './dataset'
 
-    def custom_torchvision_load(self, cls: type, split: DatasetSplit, download: bool, **kwargs) -> Dataset:
-        """Torch Vision custom dataset launch
-        Used to load torchvision datasets with special arguments names
+    # Some datasets have sub tasks (eg. GLUE)
+    task: str = None
 
-        Parameters
-        ----------
-        cls : Class
-            The torchvision.dataset class we want to load
-        fraction : DatasetFraction
-            The fraction of the dataset to load 
-        download: bool
-            Download the dataset or not
-
-        Returns
-        -------
-        Dataset
-            The loaded dataset
-        """
-        split = split.value if isinstance(split, DatasetSplit) else split
-        split_argument_name = 'split' in inspect.signature(cls.__init__).parameters
-        if cls is split_argument_name:
-            return cls(root = self.dataset_path(split), split = split, download = download, **kwargs)
-        return None
-
-
-    def dataset_path(self, split: DatasetSplit) -> str:
-        """Get the local path where the dataset is
-
-        Parameters
-        ----------
-        fraction : DatasetPlit
-            The current split in use
-
-        Returns
-        -------
-        str
-            The path where to save or load the dataset.
-        """
-        path = os.path.join(self.root, split.value)
-        logging.info(f'Dataset path is {path}')
-        return path
-
-    def make(self, split: DatasetSplit, download: bool = True, **kwargs) -> "Dataset" :
+    def make(self, split: Split, download: bool = True, **kwargs) -> "Dataset" :
         """Make
-        Looks for the dataset name, downloads it if required and returns the 
-        dataset fraction described by the given dataset fraction.
+
+        Look for the dataset name, downloads if required and returns
+        the queried dataset split.
+
+        Dataset loading strategy:
+            - Look in torchvision.datasets
+            - Look in huggingface datasets repository
+            - #? Custom Datset loader
 
         Parameters
         ----------
-        split: DatasetFraction
-            The fraction of the datset to return, usually train, eval or test
+        split: Split
+            The dataset split to return
         download: bool = True
             Wether to download the dataset or not
-        kwargs: Remaning arguments are passed to the downstream dataset loader
+        kwargs: dict(str, Any)
+            Remaning arguments are passed to the downstream dataset loader
 
 
         Returns
@@ -435,35 +399,29 @@ class DatasetConfig(BaseConfig):
         Dataset
             A torch.utils.data.Dataest object or another type of datset depending on the downstream dataset loader
         """
-        
-        # Dataset loading strategy:
-        #  Look in torchvision.datasets
-        #  Look on hugging face dataset repository
-        #  ? Custom Datset loader
+        root = os.path.join(self.root, split.value)
+        logging.info(f'Dataset path is {root}')
 
-        try:
+        locations = ["torchvision"]
+        try: # torchvision strategy
             dataset = getattr(torchvision.datasets, self.name.upper())
-        except AttributeError:
-            dataset = None
+            if dataset is "split" in inspect.signature(dataset.__init__).parameters:
+                return dataset(root=root, split=split.value, download=download, **kwargs)
+            return dataset(root=root, train=split is Split.TRAIN, download=download, **kwargs)
+        except AttributeError: pass
 
-        if dataset is not None: # torchvision strategy
-            # root, train=True, transform=None, target_transform=None, download=False
+        if HUGGINGFACE_DATASETS_AVAILABLE:
+            locations += ["huggingface datasets"]
+            try: # huggingface strategy
+                download = DownloadMode.REUSE_DATASET_IF_EXISTS
+                if self.task is not None:
+                    return load_dataset(self.name, self.task, download_mode=download, cache_dir=root, **kwargs)
+                return load_dataset(self.name, download_mode=download, cache_dir=root, **kwargs) # let the loading throw
+            except FileNotFoundError: pass
 
-            special_torchvision = self.custom_torchvision_load(dataset, split, download = download, **kwargs)
-            if special_torchvision: return special_torchvision
-
-            is_train = (split is DatasetSplit.TRAIN) or split == "train" # if argument type is disregarded and str is used instead
-            return dataset(root=self.dataset_path(split), 
-                            train=is_train, download=download, **kwargs) # let the constructor throw
-
-        download_mode = DownloadMode.FORCE_REDOWNLOAD if download else DownloadMode.REUSE_DATASET_IF_EXISTS
-        try:
-            if self.task: # Load dataset with task name
-                return load_dataset(self.name, self.task, download_mode=download_mode, cache_dir=self.dataset_path(split), **kwargs)
-            return load_dataset(self.name, download_mode=download_mode, cache_dir=self.dataset_path(split), **kwargs) # let the loading throw
-        except FileNotFoundError:
-            traceback.print_exc()
-            logging.error("Could not find dataset in the default locations, looked in torch vision and HuggingFace repo")
+        logging.fatal(f"Could not find dataset in the default locations, looked in {', '.join(locations)}.")
+        traceback.print_exc()
+        exit(1)
 
 
 __all__ = [

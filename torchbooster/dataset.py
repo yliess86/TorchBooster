@@ -4,11 +4,22 @@ Dataset Utilities.
 The Module provides a base utility class for
 implementing lmdb based datasets.
 """
+from enum import Enum
 from pathlib import Path
 from torch.nn import Module
 from torch.utils.data import Dataset
 from torchbooster.lmdb import LMDBReader
 from typing import Any
+
+
+class Split(Enum):
+    """Split
+    
+    Dataset split enum (train, validation, test).
+    """
+    TRAIN = "train"
+    VALID = "validation"
+    TEST  = "test"
 
 
 class BaseDataset(Dataset):
@@ -64,4 +75,5 @@ class BaseDataset(Dataset):
 
 __all__ = [
     BaseDataset,
+    Split,
 ]
