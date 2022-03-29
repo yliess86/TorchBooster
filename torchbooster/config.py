@@ -7,7 +7,7 @@ to generate pytorch or other objects from yaml files.
 from __future__ import annotations
 
 try:
-    from datasets import (DownloadConfig, DownloadMode, load_dataset)
+    from datasets import (DownloadMode, load_dataset)
     HUGGINGFACE_DATASETS_AVAILABLE = True
 except ImportError:
     HUGGINGFACE_DATASETS_AVAILABLE = False
