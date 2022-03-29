@@ -1,0 +1,12 @@
+#include inc2.yml
+
+env:
+    fp16: true
+    n_gpu: 1
+
+loader:
+  batch_size: 1_024
+  num_workers: 10
+  pin_memory: true
+  drop_last: true
+
