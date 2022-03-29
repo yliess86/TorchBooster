@@ -405,7 +405,7 @@ class DatasetConfig(BaseConfig):
         locations = ["torchvision"]
         try: # torchvision strategy
             dataset = getattr(torchvision.datasets, self.name.upper())
-            if dataset is "split" in inspect.signature(dataset.__init__).parameters:
+            if "split" in inspect.signature(dataset.__init__).parameters:
                 return dataset(root=root, split=split.value, download=download, **kwargs)
             return dataset(root=root, train=split is Split.TRAIN, download=download, **kwargs)
         except AttributeError: pass
