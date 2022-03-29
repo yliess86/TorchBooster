@@ -425,8 +425,7 @@ class DatasetConfig(BaseConfig):
                 return load_dataset(self.name, download_mode=download, cache_dir=root, **kwargs)
             except FileNotFoundError: pass
 
-        logging.fatal(f"Could not find dataset in the default locations, looked in {', '.join(locations)}.")
-        traceback.print_exc()
+        logging.fatal(f"Could not find dataset {self.name}{f' with task {self.task}' if self.task else ''} in the default locations, looked in {', '.join(locations)}.")
         exit(1)
 
 
