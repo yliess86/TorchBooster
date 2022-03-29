@@ -416,7 +416,7 @@ class DatasetConfig(BaseConfig):
                 download = DownloadMode.REUSE_DATASET_IF_EXISTS
                 if self.task is not None:
                     return load_dataset(self.name, self.task, download_mode=download, cache_dir=root, **kwargs)
-                return load_dataset(self.name, download_mode=download, cache_dir=root, **kwargs) # let the loading throw
+                return load_dataset(self.name, download_mode=download, cache_dir=root, **kwargs)
             except FileNotFoundError: pass
 
         logging.fatal(f"Could not find dataset in the default locations, looked in {', '.join(locations)}.")
