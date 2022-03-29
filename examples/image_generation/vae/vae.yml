@@ -1,7 +1,9 @@
 epochs: 20
 seed: 42
-z_dim: 2
 clip: 1.0
+
+z_dim: 128
+kld_weight: 2.5e-4
 
 env:
   fp16: true
@@ -19,7 +21,7 @@ loader:
 
 optim:
   name: adamw
-  lr: 1e-4
+  lr: 1e-3
 
 scheduler:
   name: cycle

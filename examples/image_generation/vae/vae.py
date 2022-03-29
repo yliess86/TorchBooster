@@ -36,7 +36,6 @@ class VE(Sequential):
             Flatten(),
             Linear(784, 512), GELU(),
             Linear(512, 512), GELU(),
-            Linear(512, 512), GELU(),
             Linear(512, 2 * self.z_dim),
         )
 
@@ -52,7 +51,6 @@ class D(Sequential):
         self.z_dim = z_dim
         super().__init__(
             Linear(self.z_dim, 512), GELU(),
-            Linear(512, 512), GELU(),
             Linear(512, 512), GELU(),
             Linear(512, 784), Sigmoid(),
             Unflatten(1, (1, 28, 28)),
@@ -81,8 +79,10 @@ def kl_divergence(mu: Tensor, log_var: Tensor) -> Tensor:
 class Config(BaseConfig):
     epochs: int
     seed: int
-    z_dim: int
     clip: float
+
+    z_dim: int
+    kld_weight: float
 
     env: EnvironementConfig
     loader: LoaderConfig
@@ -102,44 +102,41 @@ def fit(
     for _ in tqdm(range(conf.epochs), desc="Epoch", disable=not dist.is_primary()):
         vae.train(True)
         with tqdm(loader, desc="Train", disable=not dist.is_primary()) as pbar:
-            run_loss, run_bce, run_kl = RunningAverage(), RunningAverage(), RunningAverage()
+            run_loss, run_bce, run_kld = RunningAverage(), RunningAverage(), RunningAverage()
             for X, _ in pbar:
                 X = conf.env.make(X)
                 
                 with autocast(conf.env.fp16):
                     X_, mu, log_var = vae(X)
-                    kl = kl_divergence(mu, log_var)
-                    bce = bce_with_logits(X_, X)
-                    loss = bce + kl
+                    kld = kl_divergence(mu, log_var)
+                    bce = bce_with_logits(X_, 1.0 - X)
+                    loss = bce + conf.kld_weight * kld
                 
                 utils.step(loss, optim, scheduler=scheduler, scaler=scaler, clip=conf.clip)
                 
                 run_loss.update(loss.item())
                 run_bce.update(bce.item())
-                run_kl.update(kl.item())
+                run_kld.update(kld.item())
                 pbar.set_postfix(
                     loss=f"{run_loss.value:.2e}",
                     bce=f"{run_bce.value:.2e}",
-                    kl=f"{run_kl.value:.2e}",
+                    kl=f"{run_kld.value:.2e}",
                 )
 
 
 def sample(conf: Config, vae: Module) -> None:
-    vae.eval()
-    
     D = vae.decoder if isinstance(vae, Module) else vae.module.decoder
-    with autocast(conf.env.fp16):
-        s = torch.linspace(-1.0, 1.0, 32)
-        d = torch.meshgrid([s for _ in range(conf.z_dim)], indexing="xy")
-        z = torch.cat(tuple(i.reshape(-1, 1) for i in d), dim=1)
-        X = D(conf.env.make(z))
+    D.eval()
     
-    T.ToPILImage()(make_grid(X, nrow=32)).show()
+    with autocast(conf.env.fp16):
+        z = torch.randn((16 * 16, conf.z_dim))
+        X = 1.0 - D(conf.env.make(z))
+    
+    T.ToPILImage()(make_grid(X, nrow=16)).show()
 
 
 def main(conf: Config) -> None:
-    transform = T.ToTensor()
-    set = conf.dataset.make(split=Split.TRAIN, transform=transform)
+    set = conf.dataset.make(split=Split.TRAIN, transform=T.ToTensor())
     loader = conf.loader.make(set, shuffle=True, distributed=conf.env.distributed)
 
     vae = conf.env.make(VAE(conf.z_dim))
