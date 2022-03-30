@@ -106,15 +106,22 @@ def  resolve_types(conf: BaseConfig, data: dict(str, Any)) -> dict(str, Any):
         if "list" in field_type or "tuple" in field_type:
             field_type, rest = field_type.split("(")
             field_subptypes = rest[:-1].split(",")
-            field_data = field_data.split(",")
+
+            if isinstance(field_data, str):
+                field_data = field_data.split(",")
+            
+            if not isinstance(field_data, list) or not len(field_data):
+                field_data = [field_data, ]
 
             if len(field_subptypes) > 1:
                 assert len(field_subptypes) == len(field_data)
 
-            field_subptypes = map(lambda t: t.strip(), cycle(field_subptypes))
+            field_subptypes = map(lambda t: t.strip(), field_subptypes)
             field_subptypes = map(lambda t: getattr(builtins, t), field_subptypes)
-            subfields = zip(field_subptypes, field_data)
-            field_data = (subptype(datum.strip()) for subptype, datum in subfields)
+            field_data = (
+                subptype(datum.strip() if isinstance(datum, str) else datum)
+                for subptype, datum in zip(cycle(field_subptypes), field_data)
+            )
         
         try: field_type = builtins.__dict__[field_type]
         except KeyError:
