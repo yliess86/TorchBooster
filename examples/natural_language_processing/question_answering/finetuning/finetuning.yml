@@ -1,0 +1,25 @@
+#include finetuning_squad.yml
+epochs: 20
+
+
+model: distilbert-base-uncased
+fc_size: 128
+
+env:
+  fp16: false
+  n_gpu: 1
+
+loader:
+  batch_size: 256
+  num_workers: 10
+  pin_memory: true
+  drop_last: true
+
+optim:
+  name: adamw
+  lr: 1e-3
+
+scheduler:
+  name: cycle
+  n_iter: 4_680
+  decay: lin, cos

@@ -1,0 +1,10 @@
+
+dataset:
+  name: squad_v2
+  root: /tmp/dataset
+
+squad_config:
+  max_seq_length: 780
+  doc_stride: 10
+  max_query_length: 50
+  threads: 10
