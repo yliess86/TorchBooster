@@ -7,6 +7,7 @@ training code for PyTorch.
 """
 from __future__ import annotations
 
+from itertools import chain
 from torch import Tensor
 from torch.nn import Module
 from torch.nn.utils.clip_grad import clip_grad_norm_
@@ -14,7 +15,7 @@ from torch.optim import Optimizer
 from torch.cuda.amp.grad_scaler import GradScaler
 from torch.utils.data import DataLoader
 from torchbooster.scheduler import BaseScheduler
-from typing import (Any, Iterator)
+from typing import (Any, Iterator, Union)
 
 import numpy as np
 import os
@@ -77,6 +78,25 @@ def freeze(module: Module) -> Module:
     return module
 
 
+def detach(*tensors: Iterator[Tensor]) -> Union[Tensor, Iterator[Tensor]]:
+    """Detach
+    
+    Detach tensors.
+
+    Parameters
+    ----------
+    tensors: Tensor | Iterator[Tensor]
+        tensor or tensors to be detached
+
+    Returns
+    -------
+    tensors: Tensor | Iterator[Tensor]
+        detach tensor or tensors
+    """
+    if len(tensors) == 1: return tensors[0].detach()
+    return (t.detach() for t in tensors)
+
+
 def iter_loader(loader: DataLoader) -> Iterator[int, Any]:
     """Iter Loader
     
@@ -111,7 +131,8 @@ def step(
     optimizer: Optimizer,
     scheduler: BaseScheduler = None,
     scaler: GradScaler = None,
-    clip: int = None,
+    clip: float = None,
+    retain_graph: bool = False,
 ) -> None:
     """Step
     
@@ -128,18 +149,18 @@ def step(
         learning rate scheduler
     scaler: GradScaler (default: None)
         gradient scaler for mixed precision
-    clip: int (default: None)
-        gradient norm clipping value if not None
+    retain_graph: bool (default: False)
+        retain graph or not when computing backward pass
     """
     optimizer.zero_grad(set_to_none=True)
-    
-    if scaler is not None: scaler.scale(loss).backward()
-    else: loss.backward()
+
+    if scaler is not None: scaler.scale(loss).backward(retain_graph=retain_graph)
+    else: loss.backward(retain_graph=retain_graph)
     
     if clip is not None:
         if scaler is not None: scaler.unscale_(optimizer)
-        for group in optimizer.param_groups:
-            clip_grad_norm_(group["params"], max_norm=clip)
+        params = chain((p for group in optimizer.param_groups for p in group["params"]))
+        clip_grad_norm_(params, max_norm=clip)
     
     if scaler is not None: scaler.step(optimizer)
     else: optimizer.step()
