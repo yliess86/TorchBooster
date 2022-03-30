@@ -104,12 +104,12 @@ def fit(
         with tqdm(loader, desc="Train", disable=not dist.is_primary()) as pbar:
             run_loss, run_bce, run_kld = RunningAverage(), RunningAverage(), RunningAverage()
             for X, _ in pbar:
-                X = conf.env.make(X)
+                X = 1.0 - conf.env.make(X)
                 
                 with autocast(conf.env.fp16):
                     X_, mu, log_var = vae(X)
                     kld = kl_divergence(mu, log_var)
-                    bce = bce_with_logits(X_, 1.0 - X)
+                    bce = bce_with_logits(X_, X)
                     loss = bce + conf.kld_weight * kld
                 
                 utils.step(loss, optim, scheduler=scheduler, scaler=scaler, clip=conf.clip)
