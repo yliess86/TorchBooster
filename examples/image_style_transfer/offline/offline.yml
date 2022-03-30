@@ -1,0 +1,23 @@
+n_iter: 200
+seed: 42
+size: 512
+
+style: https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Tsunami_by_hokusai_19th_century.jpg/800px-Tsunami_by_hokusai_19th_century.jpg
+style_layers: [0, 5, 10, 19, 28]
+style_weight: 1e8
+
+content: https://miro.medium.com/max/2048/1*gahvpeitypqK0fTW1Enx0g.jpeg
+content_layers: 21
+content_weight: 1
+
+env:
+  n_gpu: 1
+
+optim:
+  name: adamw
+  lr: 1e-1
+
+scheduler:
+  name: cycle
+  n_iter: 200
+  decay: lin, cos
