@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+
+<svg xmlns="http://www.w3.org/2000/svg" height="256px" width="1024px" viewBox="0 0 1024 256">
+    <text
+        x="50%" y="50%"
+        fill="black"
+        font-size="100px"
+        font-family="'Poppins', sans-serif"
+        font-weight="bolder"
+        text-anchor="middle"
+        dominant-baseline="middle"
+        class="text"
+    >🚀 TorchBooster</text>
+</svg>
