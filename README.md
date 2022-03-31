@@ -1,8 +1,3 @@
-<style>
-    @media (prefers-color-scheme: dark ) { .text { fill: "black"; } }
-    @media (prefers-color-scheme: light) { .text { fill: "white"; } }
-</style>
-
 <p align="center">
     <img style="max-width: 648px;" alt="logo" src="docs/logo.svg" />
 </p>
