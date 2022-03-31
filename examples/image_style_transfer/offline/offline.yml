@@ -1,23 +1,20 @@
-n_iter: 200
+n_iter: 100
 seed: 42
-size: 512
+size: 224
 
-style: https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Tsunami_by_hokusai_19th_century.jpg/800px-Tsunami_by_hokusai_19th_century.jpg
+style: https://storage.googleapis.com/download.tensorflow.org/example_images/Vassily_Kandinsky%2C_1913_-_Composition_7.jpg
 style_layers: [0, 5, 10, 19, 28]
-style_weight: 1e8
+style_weights: [1.0, 0.8, 0.5, 0.3, 0.1]
+style_weight: 1e6
 
-content: https://miro.medium.com/max/2048/1*gahvpeitypqK0fTW1Enx0g.jpeg
+content: https://storage.googleapis.com/download.tensorflow.org/example_images/YellowLabradorLooking_new.jpg
 content_layers: 21
-content_weight: 1
+content_weights: 1.0
+content_weight: 1.0
 
 env:
   n_gpu: 1
 
 optim:
   name: adamw
-  lr: 1e-1
-
-scheduler:
-  name: cycle
-  n_iter: 200
-  decay: lin, cos
+  lr: 2e-2
