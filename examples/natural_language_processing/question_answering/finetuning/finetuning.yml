@@ -10,8 +10,8 @@ env:
   n_gpu: 1
 
 loader:
-  batch_size: 256
-  num_workers: 10
+  batch_size: 16
+  num_workers: 0
   pin_memory: true
   drop_last: true
 

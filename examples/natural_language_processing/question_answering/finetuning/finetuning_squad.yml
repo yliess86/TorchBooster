@@ -1,6 +1,6 @@
 
 dataset:
-  name: squad_v2
+  name: SQuAD2
   root: /tmp/dataset
 
 squad_config:

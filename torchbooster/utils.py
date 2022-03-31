@@ -6,6 +6,7 @@ to reduce boilerplate code when implementing
 training code for PyTorch.
 """
 from __future__ import annotations
+from collections import namedtuple
 
 from itertools import chain
 from torch import Tensor
@@ -15,7 +16,7 @@ from torch.optim import Optimizer
 from torch.cuda.amp.grad_scaler import GradScaler
 from torch.utils.data import DataLoader
 from torchbooster.scheduler import BaseScheduler
-from typing import (Any, Iterator, Union)
+from typing import (Any, Dict, Iterator, List, NamedTuple, Tuple, TypeVar, Union)
 
 import numpy as np
 import os
@@ -124,6 +125,54 @@ def iter_loader(loader: DataLoader) -> Iterator[int, Any]:
             iterator = iter(loader)
             epoch += 1
             yield epoch, next(iterator)
+
+
+def isinstance_namedtuple(obj) -> bool:
+    return (
+        isinstance(obj, tuple) and
+        hasattr(obj, '_asdict') and
+        hasattr(obj, '_fields')
+    )
+
+Tensorable = TypeVar('Tensorable', Tuple[Any], List[Any], Dict[str, Any])
+Tensored   = TypeVar('Tensored',  List[Tensor], Dict[str, Tensor])
+Device = Union[str, torch.device]
+def to_tensor(data: Tensorable, dtype: torch.dtype = torch.float32, device: Device = "cpu") -> Tensored:
+    """to_tensor
+    Converts data to a pytorch tensor
+
+    Parameters
+    ----------
+    data : Tensorable
+        The input data containing data to be transformed to a tensor
+    dtype : torch.dtype, optional
+        The dtype of the returned tensor, by default torch.float32
+    device : Device, optional
+        The device to put the tensor on, by default "cpu"
+
+    Returns
+    -------
+    Tensored
+        The tensored data with the same shape as data but transformed to torch.Tensor
+    """
+    def tensor(element):
+        return torch.tensor(element, device=device)
+
+    if isinstance(data, list):
+        if len(data) == 1:
+            return tensor(data[0])
+        return tensor(data)
+    if hasattr(data, '__dict__'):#isinstance(data, dict):
+        if hasattr(data, "copy"): # work on a copy
+            data = data.copy()
+        for k,v in data.items():
+            data[k] = tensor(v)
+        return data
+    if isinstance_namedtuple(data):
+        a = [tensor(elem) for elem in data._asdict().values()]
+        return data.__class__(*a)
+        #(k: tensor(v) for k, v in data.item())
+    return data
 
 
 def step(

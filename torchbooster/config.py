@@ -5,12 +5,17 @@ The module provides a base class that can be extended
 to generate pytorch or other objects from yaml files.
 """
 from __future__ import annotations
-
 try:
     from datasets import (DownloadMode, load_dataset)
     HUGGINGFACE_DATASETS_AVAILABLE = True
 except ImportError:
     HUGGINGFACE_DATASETS_AVAILABLE = False
+
+try:
+    import torchtext.datasets as ttd
+    TORCHTEXT_DATASETS_AVAILABE = True
+except ImportError:
+    TORCHTEXT_DATASETS_AVAILABE = False
 
 from dataclasses import dataclass
 from itertools import cycle
@@ -19,10 +24,10 @@ from torch import Tensor
 from torch.nn import (Module, Parameter)
 from torch.nn.parallel import DistributedDataParallel
 from torch.optim import (AdamW, Optimizer, SGD)
-from torch.utils.data import (DataLoader, Dataset)
+from torch.utils.data import (DataLoader, Dataset, IterableDataset)
 from torchbooster.dataset import Split
 from torchbooster.scheduler import (BaseScheduler, CycleScheduler)
-from typing import (Any, Iterator, TypeVar)
+from typing import (Any, Iterable, Iterator, TypeVar, Union)
 
 import builtins
 import inspect
@@ -251,6 +256,7 @@ class LoaderConfig(BaseConfig):
         dataset: Dataset,
         shuffle: bool = False,
         distributed: bool = False,
+        collate_fn: function = None
     ) -> DataLoader:
         """Make
 
@@ -267,8 +273,7 @@ class LoaderConfig(BaseConfig):
         loader: DataLoader
             dataset batch loader
         """
-        sampler = dist.data_sampler(dataset, shuffle, distributed)
-
+        sampler = None if isinstance(dataset, IterableDataset) else dist.data_sampler(dataset, shuffle, distributed)
         return DataLoader(
             dataset,
             self.batch_size,
@@ -276,6 +281,7 @@ class LoaderConfig(BaseConfig):
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
             drop_last=self.drop_last,
+            collate_fn=collate_fn
         )
 
 
@@ -365,6 +371,17 @@ class SchedulerConfig(BaseConfig):
         
         raise NameError(f"Scheduler {self.name} is not supported.")
 
+class IterableSizeableDataset(IterableDataset):
+    def __init__(self, iterable: Iterable, size: int, **kwargs) -> None:
+        super(IterableSizeableDataset).__init__()
+        self.size = size
+        self.iterable_dataset = iterable
+
+    def __iter__(self):
+        return iter(self.iterable_dataset)
+    
+    def __len__(self):
+        return self.size
 
 @dataclass
 class DatasetConfig(BaseConfig):
@@ -379,7 +396,7 @@ class DatasetConfig(BaseConfig):
     # Some datasets have sub tasks (eg. GLUE)
     task: str = None
 
-    def make(self, split: Split, download: bool = True, **kwargs) -> "Dataset" :
+    def make(self, split: Split, download: bool = True, **kwargs) -> Dataset:
         """Make
 
         Look for the dataset name, downloads if required and returns
@@ -416,13 +433,22 @@ class DatasetConfig(BaseConfig):
             return dataset(root=root, train=split is Split.TRAIN, download=download, **kwargs)
         except AttributeError: pass
 
+        if TORCHTEXT_DATASETS_AVAILABE:
+            try: # torchtext strategy
+                locations += ['torchtext datasets']
+                dataset_class = getattr(ttd, self.name) #TODO: load case independent use torchtext.datasets.DATASETS
+                dataset = dataset_class(self.root, split = split.value, **kwargs)
+                size = getattr(getattr(ttd, self.name.lower()), "NUM_LINES")["valid" if split == Split.VALID else split.value]
+                return IterableSizeableDataset(iter(dataset), size)
+            except AttributeError: pass
+
         if HUGGINGFACE_DATASETS_AVAILABLE:
             locations += ["huggingface datasets"]
             try: # huggingface strategy
                 download = DownloadMode.REUSE_DATASET_IF_EXISTS
                 if self.task is not None:
-                    return load_dataset(self.name, self.task, download_mode=download, cache_dir=root, **kwargs)
-                return load_dataset(self.name, download_mode=download, cache_dir=root, **kwargs)
+                    return load_dataset(self.name, self.task, download_mode=download, cache_dir=self.root, **kwargs)[split.value]
+                return load_dataset(self.name, download_mode=download, cache_dir=self.root, **kwargs)[split.value]
             except FileNotFoundError: pass
 
         logging.fatal(f"Could not find dataset {self.name}{f' with task {self.task}' if self.task else ''} in the default locations, looked in {', '.join(locations)}.")

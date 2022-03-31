@@ -21,8 +21,6 @@ from torchbooster.config import (
 from torchbooster.scheduler import BaseScheduler
 from torchvision.utils import make_grid
 from tqdm import tqdm
-from transformers.data.processors.squad import SquadV2Processor, squad_convert_examples_to_features
-from transformers import AutoModel, AutoTokenizer, SquadExample
 
 import torch
 import torchbooster.distributed as dist
@@ -50,71 +48,36 @@ class Config(BaseConfig):
     #if dataset is squad
     squad_config: SquadConfig = None
 
+def fit(conf: Config, model: Module, loader: DataLoader, optim: Optimizer, scheduler: BaseScheduler, train: bool = True):
+    for X, Y in loader:
+        print(X)
+        print(Y)
+        # print(model(tokenizer(X)))
+        model()
+        
 
-def get_squad_examples_from_dataset(dataset, evaluate: bool):
-    examples = []
-    for ex in tqdm(dataset):
-        if not evaluate:
-            answer = ex["answers"]["text"][0] if len(ex['answers']['text']) > 0 else None
-            answer_start = ex["answers"]["answer_start"][0] if len(ex["answers"]["text"]) > 0 else None
-            answers = []
-        else:
-            answers = [
-                {"answer_start": start, "text": text}
-                for start, text in zip(ex["answers"]["answer_start"], ex["answers"]["text"])
-            ]
-
-            answer = None
-            answer_start = None
-
-        examples.append(SquadExample(
-            qas_id=ex["id"],
-            question_text=ex["question"],
-            context_text=ex["context"],
-            start_position_character=answer_start,
-            title=ex["title"],
-            answer_text=answer,
-            answers=answers,
-            is_impossible=answer is None
-        ))
-
-    return examples
-
-def process_squad(conf: Config, dataset, split: Split, tokenizer) -> DataLoader:
-    processor = SquadV2Processor()
-
-
-    """ 
-    SquadExample(
-            qas_id=tensor_dict["id"].numpy().decode("utf-8"),
-            question_text=tensor_dict["question"].numpy().decode("utf-8"),
-            context_text=tensor_dict["context"].numpy().decode("utf-8"),
-            answer_text=answer,
-            start_position_character=answer_start,
-            title=tensor_dict["title"].numpy().decode("utf-8"),
-            answers=answers,
-        )"""
-    examples = get_squad_examples_from_dataset(dataset, evaluate=split != Split.TRAIN)
-    print(examples[0])
-    features = squad_convert_examples_to_features(examples, tokenizer, tqdm_enabled=dist.is_primary(), return_dataset='pt', is_training=split is Split.TRAIN, **conf.squad_config.__dict__)
-    loader = conf.loader.make(features, shuffle=split is Split.TRAIN, distributed=conf.env.distributed)
-
-    return loader
 
 def main(conf: Config):
+    model = torch.hub.load('huggingface/pytorch-transformers', 'modelForQuestionAnswering', conf.model)
+    tokenizer = torch.hub.load('huggingface/pytorch-transformers', 'tokenizer', conf.model) 
 
-    lm =  AutoModel.from_pretrained(conf.model)
-    tokenizer = AutoTokenizer.from_pretrained(conf.model)
+    if "squad" in conf.dataset.name.lower():
+        def collate_fn(data):
+            X, Y = [], []
+            
+            for sample in data:
+                X.append(utils.to_tensor(tokenizer(sample[0], sample[1])))
+                Y.append([sample[3][0], sample[3][0]+len(sample[2][0].split(' '))])
 
-    train_loader = None
-
-    if conf.dataset.name == "squad_v2":
+            return X, utils.to_tensor(Y)
+    
         train_set = conf.dataset.make(Split.TRAIN)
-        train_loader = process_squad(conf, train_set, Split.TRAIN, tokenizer)
-
-    for X in train_loader:
-        print(X['answers'])
-        exit(0)
+        train_loader = conf.loader.make(train_set, shuffle=True, collate_fn=collate_fn, distributed=conf.env.distributed)
+    
+    optim = conf.optim.make(model.parameters())
+    scheduler = conf.scheduler.make(optim)
+    fit(conf, model, train_loader, optim, scheduler)
+   
 
 if __name__ == "__main__":
     utils.seed(42)
