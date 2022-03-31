@@ -1,6 +1,6 @@
 n_iter: 500
 seed: 42
-size: 224
+size: 512
 
 style: https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg/1280px-Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg
 style_layers: [0, 5, 10, 19, 28]
@@ -11,6 +11,8 @@ content: https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Miaoli-County
 content_layers: 29
 content_weights: 1.0
 content_weight: 1.0
+
+tv_weight: 1e-6
 
 env:
   n_gpu: 1

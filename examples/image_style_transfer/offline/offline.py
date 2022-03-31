@@ -18,7 +18,6 @@ from tqdm import tqdm
 
 import numpy as np
 import requests
-import torch
 import torchbooster.utils as utils
 import torchvision.transforms as T
 
@@ -27,6 +26,12 @@ def gram_matrix(features: Tensor) -> Tensor:
     B, C, H, W = features.size()
     features = features.view(-1, H * W)
     return features @ features.T / (B * C * H * W)
+
+
+def total_variation(x: Tensor) -> Tensor:
+    a = (x[:, :, :  , :-1] - x[:, :,  :, 1:]).abs().sum()
+    b = (x[:, :, :-1, :  ] - x[:, :, 1:,  :]).abs().sum()
+    return a + b
 
 
 @dataclass
@@ -44,6 +49,8 @@ class Config(BaseConfig):
     content_layers: list(int)
     content_weights: list(float)
     content_weight: float
+
+    tv_weight: float
 
     env: EnvironementConfig
     optim: OptimizerConfig
@@ -78,11 +85,17 @@ def transfer(
 
             s_loss = sum([w_g * (m_g - s_g).pow(2).mean() for w_g, m_g, s_g in zip(w_grams, m_grams, s_grams)])
             c_loss = sum([w_f * (m_f - c_f).pow(2).mean() for w_f, m_f, c_f in zip(w_feats, m_feats, c_feats)])
-            loss = conf.style_weight * s_loss + conf.content_weight * c_loss
+            tv_loss = total_variation(mixture)
 
+            loss = conf.style_weight * s_loss + conf.content_weight * c_loss + conf.tv_weight * tv_loss
             utils.step(loss, optim)
 
-            pbar.set_postfix(loss=f"{loss.item():.2e}", style=f"{s_loss.item():.2e}", content=f"{c_loss.item():.2e}")
+            pbar.set_postfix(
+                loss=f"{loss.item():.2e}",
+                style=f"{s_loss.item():.2e}",
+                content=f"{c_loss.item():.2e}",
+                tv=f"{tv_loss.item():.2e}",
+            )
 
     return mixture
 
