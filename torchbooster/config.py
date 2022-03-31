@@ -165,9 +165,12 @@ def to_env(value: Any, cuda: bool, distributed: bool) -> Any:
     """
     if isinstance(value, Tensor):
         value: Tensor = value.to("cuda" if cuda else "cpu")
-    if isinstance(value, Module):
+    elif isinstance(value, Module):
         value: Module = value.to("cuda" if cuda else "cpu")
         if distributed: value = DistributedDataParallel(value)
+    elif hasattr(value, "__dict__"):
+        for k, v in value.items():
+            value[k] = v.to("cuda" if cuda else "cpu")
     return value
 
 T = TypeVar('T')

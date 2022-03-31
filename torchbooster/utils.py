@@ -175,6 +175,27 @@ def to_tensor(data: Tensorable, dtype: torch.dtype = torch.float32, device: Devi
     return data
 
 
+def stack_dictionaries(data: List[Dict[str, Tensor]], dim: int = 0) -> Dict[str, Tensor]:
+    """stack_dictionaries
+    Stack given dictionaries of str, Tensor type and returns a single dictionaries with Tensor stacked 
+
+    Parameters
+    ----------
+    data : List[Dict[str, Tensor]]
+        The input dictionaries with the same keys and tensor of same shape
+
+    Returns
+    -------
+    Dict[str, Tensor]
+        The stacked dictionary
+    """
+    dic = {k: [] for k in dict(data[0]).keys()} # dict() to work with Embedding wrappers
+    for elem in data:
+        for k, v in elem.items():
+            dic[k].append(v)
+    return {k: torch.stack(v, dim) for k, v in dic.items()}
+
+
 def step(
     loss: Tensor,
     optimizer: Optimizer,

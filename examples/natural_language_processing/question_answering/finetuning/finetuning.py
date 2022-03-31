@@ -53,12 +53,13 @@ def fit(conf: Config, model: Module, loader: DataLoader, optim: Optimizer, sched
         print(X)
         print(Y)
         # print(model(tokenizer(X)))
-        model()
+        print(model(**X))
+        exit()
         
 
 
 def main(conf: Config):
-    model = torch.hub.load('huggingface/pytorch-transformers', 'modelForQuestionAnswering', conf.model)
+    model = conf.env.make(torch.hub.load('huggingface/pytorch-transformers', 'modelForQuestionAnswering', conf.model))
     tokenizer = torch.hub.load('huggingface/pytorch-transformers', 'tokenizer', conf.model) 
 
     if "squad" in conf.dataset.name.lower():
@@ -66,10 +67,10 @@ def main(conf: Config):
             X, Y = [], []
             
             for sample in data:
-                X.append(utils.to_tensor(tokenizer(sample[0], sample[1])))
+                X.append(conf.env.make(utils.to_tensor(tokenizer(sample[0], sample[1], padding='max_length', max_length=conf.squad_config.max_seq_length))))
                 Y.append([sample[3][0], sample[3][0]+len(sample[2][0].split(' '))])
 
-            return X, utils.to_tensor(Y)
+            return utils.stack_dictionaries(X), conf.env.make(utils.to_tensor(Y))
     
         train_set = conf.dataset.make(Split.TRAIN)
         train_loader = conf.loader.make(train_set, shuffle=True, collate_fn=collate_fn, distributed=conf.env.distributed)

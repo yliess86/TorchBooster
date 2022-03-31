@@ -12,7 +12,7 @@ env:
 loader:
   batch_size: 16
   num_workers: 0
-  pin_memory: true
+  pin_memory: false
   drop_last: true
 
 optim:

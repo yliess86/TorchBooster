@@ -4,7 +4,7 @@ dataset:
   root: /tmp/dataset
 
 squad_config:
-  max_seq_length: 780
+  max_seq_length: 512
   doc_stride: 10
   max_query_length: 50
   threads: 10
