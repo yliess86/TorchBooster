@@ -7,7 +7,6 @@ from pathlib import Path
 from PIL import Image
 from torch import Tensor
 from torch.nn import Module
-from torch.nn.functional import mse_loss
 from torch.optim import Optimizer
 from torchbooster.config import (
     BaseConfig,
@@ -26,9 +25,8 @@ import torchvision.transforms as T
 
 def gram_matrix(features: Tensor) -> Tensor:
     B, C, H, W = features.size()
-    features = features.view(B * C, H * W)
-    G = features @ features.T
-    return G / (B * C * H * W)
+    features = features.view(-1, H * W)
+    return features @ features.T / (B * C * H * W)
 
 
 @dataclass
@@ -78,12 +76,11 @@ def transfer(
             m_grams = [gram_matrix(feats[str(l)]) for l in conf.style_layers]
             m_feats = [feats[str(l)] for l in conf.content_layers]
 
-            s_loss = sum([w_g * mse_loss(m_g, s_g) for w_g, m_g, s_g in zip(w_grams, m_grams, s_grams)])
-            c_loss = sum([w_f * mse_loss(m_f, c_f) for w_f, m_f, c_f in zip(w_feats, m_feats, c_feats)])
+            s_loss = sum([w_g * (m_g - s_g).pow(2).mean() for w_g, m_g, s_g in zip(w_grams, m_grams, s_grams)])
+            c_loss = sum([w_f * (m_f - c_f).pow(2).mean() for w_f, m_f, c_f in zip(w_feats, m_feats, c_feats)])
             loss = conf.style_weight * s_loss + conf.content_weight * c_loss
 
             utils.step(loss, optim)
-            with torch.no_grad(): mixture.clip_(0.0, 1.0)
 
             pbar.set_postfix(loss=f"{loss.item():.2e}", style=f"{s_loss.item():.2e}", content=f"{c_loss.item():.2e}")
 
@@ -95,12 +92,14 @@ def main(conf: Config) -> None:
     vgg = utils.freeze(conf.env.make(vgg).eval())
 
     mean, std = np.array((0.485, 0.456, 0.406)), np.array((0.229, 0.224, 0.225))
-    transfrom = T.Compose([T.Resize(conf.size), T.ToTensor(), T.Normalize(mean=mean, std=std)])
-    utransfrom = T.Compose([T.Normalize(mean=-mean / std, std=1.0 / std), T.ToPILImage()])
+    hdr = T.Lambda(lambda x: (x - x.min()) / (x.max() - x.min()))
+
+    transfrom = T.Compose([T.Resize(conf.size), T.CenterCrop(conf.size), T.ToTensor(), T.Normalize(mean=mean, std=std)])
+    utransfrom = T.Compose([T.Normalize(mean=-mean / std, std=1.0 / std), hdr, T.ToPILImage()])
 
     load_img = lambda url: Image.open(BytesIO(requests.get(url).content)).convert("RGB")
-    style = conf.env.make(transfrom(load_img(conf.style)).unsqueeze(0))
     content = conf.env.make(transfrom(load_img(conf.content)).unsqueeze(0))
+    style = conf.env.make(transfrom(load_img(conf.style)).unsqueeze(0))
 
     mixture = content.clone().requires_grad_(True)
     optim = conf.optim.make([mixture])

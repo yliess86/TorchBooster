@@ -1,14 +1,14 @@
-n_iter: 100
+n_iter: 500
 seed: 42
 size: 224
 
-style: https://storage.googleapis.com/download.tensorflow.org/example_images/Vassily_Kandinsky%2C_1913_-_Composition_7.jpg
+style: https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg/1280px-Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg
 style_layers: [0, 5, 10, 19, 28]
 style_weights: [1.0, 0.8, 0.5, 0.3, 0.1]
 style_weight: 1e6
 
-content: https://storage.googleapis.com/download.tensorflow.org/example_images/YellowLabradorLooking_new.jpg
-content_layers: 21
+content: https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Miaoli-County_Taiwan_Quanhua-Temple-03.jpg/1280px-Miaoli-County_Taiwan_Quanhua-Temple-03.jpg
+content_layers: 29
 content_weights: 1.0
 content_weight: 1.0
 
@@ -17,4 +17,5 @@ env:
 
 optim:
   name: adamw
-  lr: 2e-2
+  lr: 1e-1
+  weight_decay: 1e-6
