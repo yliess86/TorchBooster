@@ -162,7 +162,7 @@ def to_tensor(data: Tensorable, dtype: torch.dtype = torch.float32, device: Devi
         if len(data) == 1:
             return tensor(data[0])
         return tensor(data)
-    if hasattr(data, '__dict__'):#isinstance(data, dict):
+    if hasattr(data, '__dict__') or isinstance(data, dict):#isinstance(data, dict):
         if hasattr(data, "copy"): # work on a copy
             data = data.copy()
         for k,v in data.items():
@@ -189,6 +189,8 @@ def stack_dictionaries(data: List[Dict[str, Tensor]], dim: int = 0) -> Dict[str,
     Dict[str, Tensor]
         The stacked dictionary
     """
+    if len(data) == 0:
+        return {}
     dic = {k: [] for k in dict(data[0]).keys()} # dict() to work with Embedding wrappers
     for elem in data:
         for k, v in elem.items():

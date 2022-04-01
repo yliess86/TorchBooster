@@ -1,0 +1,15 @@
+tqdm
+numpy
+torchvision
+datasets
+coloredlogs
+dataclasses
+pytest
+PyYAML
+torch
+torchtext
+torchdata
+transformers
+lmdb
+sentencepiece
+importlib_metadata
