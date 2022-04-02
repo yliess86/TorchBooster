@@ -170,7 +170,7 @@ def to_env(value: Any, cuda: bool, distributed: bool) -> Any:
     elif isinstance(value, Module):
         value: Module = value.to("cuda" if cuda else "cpu")
         if distributed: value = DistributedDataParallel(value)
-    elif hasattr(value, "__dict__"):
+    elif hasattr(value, "__dict__") or isinstance(value, dict):
         for k, v in value.items():
             value[k] = v.to("cuda" if cuda else "cpu")
     return value
