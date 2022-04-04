@@ -159,14 +159,11 @@ def to_tensor(data: Tensorable, dtype: torch.dtype = torch.float32, device: Devi
         return torch.tensor(element, device=device)
 
     if isinstance(data, list):
-        if len(data) == 1:
-            return tensor(data[0])
+        if len(data) == 1: return tensor(data[0])
         return tensor(data)
     if hasattr(data, '__dict__') or isinstance(data, dict):#isinstance(data, dict):
-        if hasattr(data, "copy"): # work on a copy
-            data = data.copy()
-        for k,v in data.items():
-            data[k] = tensor(v)
+        if hasattr(data, "copy"): data = data.copy() # work on a copy
+        for k,v in data.items(): data[k] = tensor(v)
         return data
     if isinstance_namedtuple(data):
         a = [tensor(elem) for elem in data._asdict().values()]

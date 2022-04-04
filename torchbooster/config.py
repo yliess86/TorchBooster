@@ -11,14 +11,14 @@ try:
     HUGGINGFACE_DATASETS_AVAILABLE = True
 except ImportError:
     HUGGINGFACE_DATASETS_AVAILABLE = False
-    logging.warning('Could not load torchtext, torchtext datasets are not available')
+    logging.warning('Could not load transformers, hugging face datasets are not available')
 
 try:
     import torchtext.datasets as ttd
     TORCHTEXT_DATASETS_AVAILABE = True
 except ImportError:
     TORCHTEXT_DATASETS_AVAILABE = False
-    logging.warning('Could not load transformers, hugging face datasets are not available')
+    logging.warning('Could not load torchtext, torchtext datasets are not available')
 
 from dataclasses import dataclass
 from itertools import cycle
