@@ -122,8 +122,9 @@ def main(conf: Config) -> None:
 
 
 if __name__ == "__main__":
-    utils.seed(42)
-    utils.boost(enable=True)
-
     conf = Config.load(Path("offline.yml"))
+
+    utils.seed(conf.seed)
+    utils.boost(enable=True)
+    
     main(conf)

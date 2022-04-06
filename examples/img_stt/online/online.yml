@@ -1,0 +1,39 @@
+n_iter: 10_000
+seed: 42
+size: 256
+clip: 1.0
+
+style: https://www.artmajeur.com/medias/hd/l/e/leonidafremov/artwork/7747972_il-fullxfull-515817781-2lnz.jpg
+content: https://www.csail.mit.edu/sites/default/files/styles/primary_image/public/2018-03/8IJ6bTBzzeY9tTRAlCWkX_kQnn_bObdSidVptT1DAo8%2Ce55rYzWwNNl0zT4Yl2KvNczCALF8vnVAnT_tiMcok-M_1.jpg
+
+layers: [3, 8, 15, 22]
+content_layer: 8
+
+style_weight: 1e6
+content_weight: 1e1
+tv_weight: 1e-6
+
+env:
+  n_gpu: 1
+  fp16: false
+
+dataset:
+  name: coco
+  root: /datasets/coco
+  zip: http://images.cocodataset.org/zips/train2017.zip
+
+loader:
+  batch_size: 8
+  num_workers: 10
+  pin_memory: true
+  drop_last: true
+
+optim:
+  name: adamw
+  lr: 1e-5
+
+scheduler:
+  name: cycle
+  n_iter: 10_000
+  warmup: 1_000
+  decay: lin, cos
