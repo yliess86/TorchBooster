@@ -1,5 +1,5 @@
 #include finetuning_squad.yml
-epochs: 20
+epochs: 1
 
 
 model: distilbert-base-uncased
@@ -21,5 +21,5 @@ optim:
 
 scheduler:
   name: cycle
-  n_iter: 4_680
+  n_iter: 8_144
   decay: lin, cos

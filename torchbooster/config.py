@@ -131,14 +131,18 @@ def  resolve_types(conf: BaseConfig, data: dict(str, Any)) -> dict(str, Any):
         
         if issubclass(field_type, BaseConfig):
             field_data = resolve_types(field_type, field_data)
-            fields[field_name] = field_type(**field_data)
+            try:
+                fields[field_name] = field_type(**field_data)
+            except TypeError as ex:
+                logging.error(f'Type {field_name} instance error: {ex.args}')
         else:
             fields[field_name] = field_type(field_data)
 
-    dataclass_fields = conf.__dataclass_fields__.keys()
-    for elem in data.keys():
-        if not elem in dataclass_fields:
-            logging.log(level=logging.WARNING, msg=f'Extra config element {elem} for config class {conf.__name__}. This could be a configuration problem.')
+    if isinstance(data, dict):
+        dataclass_fields = conf.__dataclass_fields__.keys()
+        for elem in data.keys():
+            if not elem in dataclass_fields:
+                logging.log(level=logging.WARNING, msg=f'Extra config element {elem} for config class {conf.__name__}. This could be a configuration problem.')
 
     return fields
 
@@ -374,6 +378,7 @@ class SchedulerConfig(BaseConfig):
         
         raise NameError(f"Scheduler {self.name} is not supported.")
 
+
 class IterableSizeableDataset(IterableDataset):
     def __init__(self, iterable: Iterable, size: int, **kwargs) -> None:
         super(IterableSizeableDataset).__init__()
@@ -385,6 +390,49 @@ class IterableSizeableDataset(IterableDataset):
     
     def __len__(self):
         return self.size
+
+
+class DistributedIterableSizeableDataset(IterableDataset):
+    """
+    Example implementation of an IterableDataset that handles both multiprocessing and distributed training.
+    It works by skipping each num_workers * world_size element, starting at index rank + num_workers * worker_id,
+    where num_workers is the number of workers as specified in the DataLoader, world_size is the number of processes
+    in the distribution context, worker_id the id of worker in the DataLoader and rank the rank in the distribution
+    context.
+    Both rank and world_size must be retrieved outside of the dataset's context and passes in the constructor as they
+    won't be available reliably when the dataset is invoked from another process for num_workers > 1.
+    Note, that in this example, the data, respectively the iterator is passed in the constructor. In practise, this
+    should be avoided and the iteration and skipping logic should be implemented in __iter__ according to the
+    concrete needs. The reason for this is, that depending on the actual case, the given iterator may already do some
+    heavy computation under the hood.
+    In the case of an IterableDataset containing images for example, the images would be loaded in every iteration,
+    although most of them would be skipped. The solution in such a case would be, to iterate through all image paths,
+    but only load the actual image, if the iteration is not skipped.
+    """
+    def __init__(self, it, rank, world_size, iter_len=0):
+        self.it = it
+        self.rank = rank
+        self.world_size = world_size
+        self.iter_len = iter_len
+
+    def __len__(self):
+        return self.iter_len
+
+    def __iter__(self):
+        worker_info = torch.utils.data.get_worker_info()
+
+        mod = self.world_size
+        shift = self.rank
+
+        if worker_info:
+            mod *= worker_info.num_workers
+            shift = self.rank * worker_info.num_workers + worker_info.id
+
+        for i, elem in enumerate(self.it):
+            if (i + shift) % mod == 0:
+                print(f'dataset: {dist.get_local_rank()} {i}')
+                yield elem
+
 
 @dataclass
 class DatasetConfig(BaseConfig):
@@ -399,7 +447,7 @@ class DatasetConfig(BaseConfig):
     # Some datasets have sub tasks (eg. GLUE)
     task: str = None
 
-    def make(self, split: Split, download: bool = True, **kwargs) -> Dataset:
+    def make(self, split: Split, download: bool = True, distributed = False, **kwargs) -> Dataset:
         """Make
 
         Look for the dataset name, downloads if required and returns
@@ -442,6 +490,8 @@ class DatasetConfig(BaseConfig):
                 dataset_class = getattr(ttd, self.name) #TODO: load case independent use torchtext.datasets.DATASETS
                 dataset = dataset_class(self.root, split = split.value, **kwargs)
                 size = getattr(getattr(ttd, self.name.lower()), "NUM_LINES")["valid" if split == Split.VALID else split.value]
+                if distributed:
+                    return DistributedIterableSizeableDataset(iter(dataset), dist.get_local_rank(), dist.get_world_size(), iter_len=size)
                 return IterableSizeableDataset(iter(dataset), size)
             except AttributeError: pass
 
@@ -456,7 +506,6 @@ class DatasetConfig(BaseConfig):
 
         logging.fatal(f"Could not find dataset {self.name}{f' with task {self.task}' if self.task else ''} in the default locations, looked in {', '.join(locations)}.")
         exit(1)
-
 
 __all__ = [
     BaseConfig,

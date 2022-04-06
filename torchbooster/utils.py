@@ -22,6 +22,7 @@ import numpy as np
 import os
 import random
 import torch
+import logging
 
 
 def boost(enable: bool = True) -> None:
@@ -35,6 +36,8 @@ def boost(enable: bool = True) -> None:
     enable: bool (dault: True)
         enable if True or disable if False
     """
+    if not enable:
+        logging.warning(f'torchbooster.utils.boost(False) was called. This will enable anomaly detection and cna impact the training performance')
     torch.backends.cudnn.benchmark = enable
     torch.autograd.profiler.profile(enabled=not enable)
     torch.autograd.profiler.emit_nvtx(enabled=not enable)

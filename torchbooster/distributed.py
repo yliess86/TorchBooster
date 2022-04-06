@@ -10,7 +10,7 @@ from __future__ import annotations
 from torch.utils.data import (Dataset, DistributedSampler, RandomSampler, Sampler, SequentialSampler)
 from torch import distributed as dist
 from torch import multiprocessing as mp
-from typing import (Any, Callable)
+from typing import (Any, Callable, List)
 
 import os
 import socket
@@ -19,6 +19,24 @@ import torch
 
 LOCAL_PROCESS_GROUP = None
 
+
+
+def gather(tensor: torch.Tensor, tensor_list: List[torch.Tensor] = None):
+    """gather
+
+    Parameters
+    ----------
+    tensor : torch.Tensor
+        The tensor to gather
+    tensor_list : List[torch.Tensor], optional
+        The tensor list to gather into, set to None in non-primary processes, set to a List of tensors of size dist.get_world_size()
+        with each tensor has the same dim as `tensor`, by default None
+    """
+
+    if is_primary():
+        dist.gather(tensor, tensor_list)
+    else:
+        dist.gather(tensor, dst=0)
 
 def get_rank() -> int:
     """Get Process Rank"""
