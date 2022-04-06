@@ -8,6 +8,11 @@ class LocalNamedTuple(NamedTuple):
     field1: List[int]
     field2: List[int]
 
+def test_to_tensor_dico():
+    d = {'key': [1, 2, 3]}
+
+    assert type(to_tensor(d)['key'] == torch.Tensor)
+
 def test_to_tensor_named_tuples():
     a = LocalNamedTuple([1, 2], [3, 4])
     t = to_tensor(a)

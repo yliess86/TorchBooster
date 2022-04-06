@@ -61,8 +61,8 @@ def fit(conf: Config, model: Module, loader: DataLoader, optim: Optimizer, sched
 
 
 def main(conf: Config):
-    model = conf.env.make(torch.hub.load('/home/win32gg/Documents/transformers', 'modelForQuestionAnswering', conf.model, source="local"))
-    tokenizer = torch.hub.load('/home/win32gg/Documents/transformers', 'tokenizer', conf.model, source="local") 
+    model = conf.env.make(torch.hub.load('huggingface/transformers', 'modelForQuestionAnswering', conf.model))#, source="local"))
+    tokenizer = torch.hub.load('huggingface/transformers', 'tokenizer', conf.model)#, source="local") 
 
     if "squad" in conf.dataset.name.lower():
         def index_to_token(emb, idx):

@@ -5,17 +5,20 @@ The module provides a base class that can be extended
 to generate pytorch or other objects from yaml files.
 """
 from __future__ import annotations
+import logging
 try:
     from datasets import (DownloadMode, load_dataset)
     HUGGINGFACE_DATASETS_AVAILABLE = True
 except ImportError:
     HUGGINGFACE_DATASETS_AVAILABLE = False
+    logging.warning('Could not load transformers, hugging face datasets are not available')
 
 try:
     import torchtext.datasets as ttd
     TORCHTEXT_DATASETS_AVAILABE = True
 except ImportError:
     TORCHTEXT_DATASETS_AVAILABE = False
+    logging.warning('Could not load torchtext, torchtext datasets are not available')
 
 from dataclasses import dataclass
 from itertools import cycle
@@ -35,7 +38,6 @@ import os
 import torchbooster.distributed as dist
 import torchvision
 import traceback
-import logging
 import yaml
 
 
