@@ -40,7 +40,7 @@ def boost(enable: bool = True) -> None:
     torch.autograd.set_detect_anomaly(mode=not enable)
 
 
-def seed(value: int) -> None:
+def seed(value: int, deterministic: bool = True) -> None:
     """Seed
     
     Set seed for random, numpy, and pytorch pseudo-random generators (PGN).
@@ -49,13 +49,16 @@ def seed(value: int) -> None:
     ----------
     value: int
         seed value to pass to every PGN
+    deterministic: bool (default: True)
+        enable or disable deterministic checks
     """
     random.seed(value)
     np.random.seed(value)
     torch.manual_seed(value)
 
-    os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
-    torch.use_deterministic_algorithms(True)
+    if deterministic:
+        os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
+        torch.use_deterministic_algorithms(True, warn_only=True)
 
 
 def freeze(module: Module) -> Module:
