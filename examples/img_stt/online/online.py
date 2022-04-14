@@ -54,7 +54,7 @@ class StyleNet(Sequential):
         modules = [Residual(Bottleneck(128, 128, 3, 1))] * 5
         modules = Sequential(ConvIN(64, 128, 3, 2), *modules, DeconvIN(128, 64, 3, 1))
         modules = Sequential(ConvIN(32,  64, 3, 2),  modules, DeconvIN( 64, 32, 3, 1))
-        super().__init__  (ConvIN( 3,  32, 9, 1),  modules, Conv    ( 32,  3, 9, 1))
+        super().__init__    (ConvIN( 3,  32, 9, 1),  modules, Conv    ( 32,  3, 9, 1))
 
 
 def gram_matrix(features: Tensor) -> Tensor:

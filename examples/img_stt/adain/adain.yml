@@ -1,0 +1,39 @@
+n_iter: 10_000
+seed: 42
+size: 256
+clip: 1.0
+
+layers: [3, 8, 15, 22]
+
+style_weight: 10
+content_weight: 1
+
+env:
+  n_gpu: 1
+  fp16: false
+
+coco:
+  name: coco
+  root: /datasets/coco
+  zip: http://images.cocodataset.org/zips/train2017.zip
+
+paintings:
+  name: paintings
+  root: /datasets/paintings
+  csv: https://www.robots.ox.ac.uk/~vgg/data/paintings/painting_dataset_2021.csv
+
+loader:
+  batch_size: 32
+  num_workers: 10
+  pin_memory: true
+  drop_last: true
+
+optim:
+  name: adamw
+  lr: 1e-4
+
+scheduler:
+  name: cycle
+  n_iter: 10_000
+  warmup: 1_000
+  decay: lin, cos
