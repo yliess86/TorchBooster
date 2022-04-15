@@ -45,7 +45,7 @@ class BaseScheduler:
     def __init__(self, optimizer: Optimizer) -> None:
         self.optimizer = optimizer
 
-    def state_dic(self) -> dict(str, Any):
+    def state_dict(self) -> dict(str, Any):
         """State Dict"""
         raise NotImplementedError("Method 'state_dict' not implemented.")
 
@@ -123,7 +123,7 @@ class CycleScheduler(BaseScheduler):
 
         self.last_lr = None
 
-    def state_dic(self) -> dict(str, Any):
+    def state_dict(self) -> dict(str, Any):
         """State Dict"""
         return {
             "phases"    : self.phases,
