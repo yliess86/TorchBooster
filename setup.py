@@ -7,7 +7,7 @@ setup(
     version=__version__,
     description="A simple and yet practical pytorch booster library to help with bootstraping and reproducing research.",
     author="Yliess Hati and Gregor Jouet",
-    author_email="{yliess.hati, gregor.jouet}@devinci.fr",
+    author_email="yliess.hati@devinci.fr",
     packages=["torchbooster"],
     package_dir={"torchbooster": "torchbooster"},
     keywords=["research", "deep-learning", "reproducible-research", "python3", "pytorch"],
