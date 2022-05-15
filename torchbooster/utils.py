@@ -136,6 +136,7 @@ def step(
     scaler: GradScaler = None,
     clip: float = None,
     retain_graph: bool = False,
+    accumulate: bool = False,
 ) -> None:
     """Step
     
@@ -154,19 +155,26 @@ def step(
         gradient scaler for mixed precision
     retain_graph: bool (default: False)
         retain graph or not when computing backward pass
+    accumulate: bool (default: False)
+        accumulate gradients (if set True no step is performed)
     """
-    optimizer.zero_grad(set_to_none=True)
+    if accumulate:
+        if scaler is not None: scaler.scale(loss).backward(retain_graph=retain_graph)
+        else: loss.backward(retain_graph=retain_graph)
 
-    if scaler is not None: scaler.scale(loss).backward(retain_graph=retain_graph)
-    else: loss.backward(retain_graph=retain_graph)
-    
-    if clip is not None:
-        if scaler is not None: scaler.unscale_(optimizer)
-        params = chain((p for group in optimizer.param_groups for p in group["params"]))
-        clip_grad_norm_(params, max_norm=clip)
-    
-    if scaler is not None: scaler.step(optimizer)
-    else: optimizer.step()
-    
-    if scheduler is not None: scheduler.step()
-    if scaler is not None: scaler.update()
+    else:
+        optimizer.zero_grad(set_to_none=True)
+
+        if scaler is not None: scaler.scale(loss).backward(retain_graph=retain_graph)
+        else: loss.backward(retain_graph=retain_graph)
+        
+        if clip is not None:
+            if scaler is not None: scaler.unscale_(optimizer)
+            params = chain((p for group in optimizer.param_groups for p in group["params"]))
+            clip_grad_norm_(params, max_norm=clip)
+        
+        if scaler is not None: scaler.step(optimizer)
+        else: optimizer.step()
+        
+        if scheduler is not None: scheduler.step()
+        if scaler is not None: scaler.update()
