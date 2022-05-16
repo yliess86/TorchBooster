@@ -11,6 +11,7 @@ from itertools import chain
 from torch import Tensor
 from torch.nn import Module
 from torch.nn.utils.clip_grad import clip_grad_norm_
+from torch.jit import ScriptModule
 from torch.optim import Optimizer
 from torch.cuda.amp.grad_scaler import GradScaler
 from torch.utils.data import DataLoader
@@ -23,6 +24,30 @@ import random
 import torch
 
 
+def jit(module: Module, inputs: Any) -> ScriptModule:
+    """Just In Time
+
+    Trace a module given fake inputs, freeze the module,
+    apply inference optimizations using the torch jit utilities.
+
+    Parameters
+    ----------
+    module: Module
+        module to optimize for inference
+    inputs: Any
+        module fake inputs (must be on the same device)
+
+    Returns
+    -------
+    module: ScriptModule
+        optimized module (to be saved with torch.jit.save)
+    """
+    module = torch.jit.trace(module, inputs)
+    module = torch.jit.optimize_for_inference(module)
+    module(*inputs)
+    return module
+
+
 def boost(enable: bool = True) -> None:
     """Boost
     
@@ -31,7 +56,7 @@ def boost(enable: bool = True) -> None:
 
     Parameters
     ----------
-    enable: bool (dault: True)
+    enable: bool (default: True)
         enable if True or disable if False
     """
     torch.backends.cudnn.benchmark = enable
