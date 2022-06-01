@@ -258,6 +258,7 @@ class LoaderConfig(BaseConfig):
         dataset: Dataset,
         shuffle: bool = False,
         distributed: bool = False,
+        prefetch_factor: int = 2,
     ) -> DataLoader:
         """Make
 
@@ -268,6 +269,8 @@ class LoaderConfig(BaseConfig):
         shuffle, distributed: bool (default: False, False)
             shuffle or not
             distributed or not
+        prefetch_factor: int (default: 2)
+            amount of sample to prefetch per worker
 
         Returns
         -------
@@ -283,6 +286,7 @@ class LoaderConfig(BaseConfig):
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
             drop_last=self.drop_last,
+            prefetch_factor=prefetch_factor,
         )
 
 
