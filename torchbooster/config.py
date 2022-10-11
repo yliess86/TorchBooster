@@ -5,12 +5,22 @@ The module provides a base class that can be extended
 to generate pytorch or other objects from yaml files.
 """
 from __future__ import annotations
-
+from copy import deepcopy
+from enum import Enum
+import logging
 try:
     from datasets import (DownloadMode, load_dataset)
     HUGGINGFACE_DATASETS_AVAILABLE = True
 except ImportError:
     HUGGINGFACE_DATASETS_AVAILABLE = False
+    logging.warning('Could not load transformers, hugging face datasets are not available')
+
+try:
+    import torchtext.datasets as ttd
+    TORCHTEXT_DATASETS_AVAILABE = True
+except ImportError:
+    TORCHTEXT_DATASETS_AVAILABE = False
+    logging.warning('Could not load torchtext, torchtext datasets are not available')
 
 from dataclasses import dataclass
 from itertools import cycle
@@ -19,18 +29,18 @@ from torch import Tensor
 from torch.nn import (Module, Parameter)
 from torch.nn.parallel import DistributedDataParallel
 from torch.optim import (AdamW, Optimizer, SGD)
-from torch.utils.data import (DataLoader, Dataset)
+from torch.utils.data import (DataLoader, Dataset, IterableDataset)
 from torchbooster.dataset import Split
 from torchbooster.scheduler import (BaseScheduler, CycleScheduler)
-from typing import (Any, Iterator, TypeVar)
+from typing import (Any, Generator, Iterable, Iterator, Tuple, Type, TypeVar, Union)
 
 import builtins
 import inspect
+import torch
 import os
 import torchbooster.distributed as dist
 import torchvision
 import traceback
-import logging
 import yaml
 
 
@@ -104,24 +114,20 @@ def  resolve_types(conf: BaseConfig, data: dict(str, Any)) -> dict(str, Any):
         field_data = data[field_name]
 
         if "list" in field_type or "tuple" in field_type:
+            if len(field_type.split('(')) == 1:
+                raise RuntimeError("Indicate the type contained by the list/tuple: e.g list(int, int)")
             field_type, rest = field_type.split("(")
             field_subptypes = rest[:-1].split(",")
-
-            if isinstance(field_data, str):
+            if type(field_data) == str:
                 field_data = field_data.split(",")
-            
-            if not isinstance(field_data, list) or not len(field_data):
-                field_data = [field_data, ]
 
             if len(field_subptypes) > 1:
                 assert len(field_subptypes) == len(field_data)
 
-            field_subptypes = map(lambda t: t.strip(), field_subptypes)
+            field_subptypes = map(lambda t: t.strip(), cycle(field_subptypes))
             field_subptypes = map(lambda t: getattr(builtins, t), field_subptypes)
-            field_data = (
-                subptype(datum.strip() if isinstance(datum, str) else datum)
-                for subptype, datum in zip(cycle(field_subptypes), field_data)
-            )
+            subfields = zip(field_subptypes, field_data)
+            field_data = (subptype(datum.strip() if hasattr(datum, "strip") else datum) for subptype, datum in subfields)
         
         try: field_type = builtins.__dict__[field_type]
         except KeyError:
@@ -167,12 +173,90 @@ def to_env(value: Any, cuda: bool, distributed: bool) -> Any:
     """
     if isinstance(value, Tensor):
         value: Tensor = value.to("cuda" if cuda else "cpu")
-    if isinstance(value, Module):
+    elif isinstance(value, Module):
         value: Module = value.to("cuda" if cuda else "cpu")
         if distributed: value = DistributedDataParallel(value)
+    elif hasattr(value, "__dict__") or isinstance(value, dict):
+        for k, v in value.items():
+            value[k] = v.to("cuda" if cuda else "cpu")
     return value
 
 T = TypeVar('T')
+
+class HyperParameterConfig():
+
+    class HyperParameterIndex():
+        def __init__(self, idx) -> None:
+            self.idx = idx
+
+        def __repr__(self) -> str:
+            return f'HyperParameterIndex({self.idx})'
+
+    def __init__(self, cls: Type, content: str) -> None:
+        logging.debug("Reading hyperparam config")
+        #TODO docme        
+        self.content = content
+        self.hp_config: dict = None
+        self.cls = cls
+        self.parse()
+
+    def _get_param_iterator(self, content: str, iterators: list):
+        from numpy import arange
+        try:
+            it = eval(content)
+            if hasattr(it, "__iter__"):
+                it = list(it)
+                iterators.append(it)
+                logging.info(f'Parsed hp str: {content}')
+                return HyperParameterConfig.HyperParameterIndex(len(iterators) - 1)
+            return content
+        except:
+            return content
+
+    
+    def _find_hparams(self, d: dict, iterators: list):
+        for k in d:
+            if isinstance(d[k], dict):
+                self._find_hparams(d[k], iterators)
+            if isinstance(d[k], str):
+                d[k] = self._get_param_iterator(d[k], iterators)
+
+    def _increase_idx(self, idx: list):
+        i = 0
+        while idx[i]+1 >= len(self.iterators[i]):
+            idx[i] = 0
+            i += 1
+            if i >= len(idx):
+                return False
+        idx[i] += 1
+        return True
+            
+    def _gen_idx(self):
+        idx = [0 for i in range(len(self.iterators))]
+        yield idx
+        while self._increase_idx(idx):
+            yield idx
+
+    def gen_cfg(self) -> Generator[BaseConfig]:
+        def _recusrse_replace(d, idx):
+            for k in d:
+                if isinstance(d[k], dict):
+                    _recusrse_replace(d[k], idx)
+                if isinstance(d[k], HyperParameterConfig.HyperParameterIndex):
+                    d[k] = self.iterators[d[k].idx][idx[d[k].idx]]
+
+        for idx in self._gen_idx():
+            cfg = deepcopy(self.hp_config)
+            _recusrse_replace(cfg, idx)
+            fields = resolve_types(self.cls, cfg)
+            yield self.cls(**fields)
+
+    def parse(self):
+        self.hp_config = yaml.full_load(self.content)
+        self.iterators = []
+        self._find_hparams(self.hp_config, self.iterators)
+        logging.info(f'Parsed hparam config with {len(self.iterators)} parameters')
+
 
 @dataclass
 class BaseConfig:
@@ -188,7 +272,7 @@ class BaseConfig:
         raise NotImplementedError("Method 'make' is not implemented")
 
     @classmethod
-    def load(cls: T, path: Path) -> T:
+    def load(cls: T, path: Path, hyperparams: bool = False) -> Union[T, Generator[T]]:
         """Load
         
         Load configuration from a yaml file.
@@ -197,13 +281,21 @@ class BaseConfig:
         ----------
         path: Path
             path to yaml file
+        hyperparams: Bool
+            True if the file contains hyperparameters, 
+            it will be interpreted by the HyperParameterParser
+            and return an iterator of Config
 
         Returns
         -------
-        conf: BaseConfig
-            configuration intantiated from yaml file 
+        conf: BaseConfig:
+            configuration intantiated from yaml file
+        Iterator[BaseConfig]:
+            an iterator of BaseConfig if the hyperparam value is True 
         """
         stream = "\n".join(read_lines(path))
+        if hyperparams:
+            return HyperParameterConfig(cls, stream).gen_cfg()
         data = yaml.full_load(stream)
         fields = resolve_types(cls, data)
         return cls(**fields)
@@ -258,7 +350,7 @@ class LoaderConfig(BaseConfig):
         dataset: Dataset,
         shuffle: bool = False,
         distributed: bool = False,
-        prefetch_factor: int = 2,
+        collate_fn: function = None
     ) -> DataLoader:
         """Make
 
@@ -269,16 +361,13 @@ class LoaderConfig(BaseConfig):
         shuffle, distributed: bool (default: False, False)
             shuffle or not
             distributed or not
-        prefetch_factor: int (default: 2)
-            amount of sample to prefetch per worker
 
         Returns
         -------
         loader: DataLoader
             dataset batch loader
         """
-        sampler = dist.data_sampler(dataset, shuffle, distributed)
-
+        sampler = None if isinstance(dataset, IterableDataset) else dist.data_sampler(dataset, shuffle, distributed)
         return DataLoader(
             dataset,
             self.batch_size,
@@ -286,7 +375,7 @@ class LoaderConfig(BaseConfig):
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
             drop_last=self.drop_last,
-            prefetch_factor=prefetch_factor,
+            collate_fn=collate_fn
         )
 
 
@@ -376,6 +465,65 @@ class SchedulerConfig(BaseConfig):
         
         raise NameError(f"Scheduler {self.name} is not supported.")
 
+DEFAULT_DATASET_ACCEPTANCE_FN = lambda _: True
+
+class IterableSizeableDataset(IterableDataset):
+    def __init__(self, iterable: Iterable, size: int, acceptance_fn: Tuple[Any, bool] = DEFAULT_DATASET_ACCEPTANCE_FN,  **kwargs) -> None:
+        super(IterableSizeableDataset).__init__()
+        self.size = size
+        self.iterable_dataset = iterable
+        self.acceptance_fn = acceptance_fn
+
+    def __iter__(self):
+        for elem in self.iterable_dataset:
+            if self.acceptance_fn(elem):
+                yield elem
+    
+    def __len__(self):
+        return self.size
+
+
+class DistributedIterableSizeableDataset(IterableDataset):
+    """
+    Example implementation of an IterableDataset that handles both multiprocessing and distributed training.
+    It works by skipping each num_workers * world_size element, starting at index rank + num_workers * worker_id,
+    where num_workers is the number of workers as specified in the DataLoader, world_size is the number of processes
+    in the distribution context, worker_id the id of worker in the DataLoader and rank the rank in the distribution
+    context.
+    Both rank and world_size must be retrieved outside of the dataset's context and passes in the constructor as they
+    won't be available reliably when the dataset is invoked from another process for num_workers > 1.
+    Note, that in this example, the data, respectively the iterator is passed in the constructor. In practise, this
+    should be avoided and the iteration and skipping logic should be implemented in __iter__ according to the
+    concrete needs. The reason for this is, that depending on the actual case, the given iterator may already do some
+    heavy computation under the hood.
+    In the case of an IterableDataset containing images for example, the images would be loaded in every iteration,
+    although most of them would be skipped. The solution in such a case would be, to iterate through all image paths,
+    but only load the actual image, if the iteration is not skipped.
+    """
+    def __init__(self, it, rank, world_size, iter_len=0, acceptance_fn: Tuple[Any, bool] = DEFAULT_DATASET_ACCEPTANCE_FN):
+        self.it = it
+        self.rank = rank
+        self.world_size = world_size
+        self.iter_len = iter_len
+        self.acceptance_fn = acceptance_fn
+
+    def __len__(self):
+        return self.iter_len
+
+    def __iter__(self):
+        worker_info = torch.utils.data.get_worker_info()
+
+        mod = self.world_size
+        shift = self.rank
+
+        if worker_info:
+            mod *= worker_info.num_workers
+            shift = self.rank * worker_info.num_workers + worker_info.id
+
+        for i, elem in enumerate(self.it):
+            if (i + shift) % mod == 0 and self.acceptance_fn(elem):
+                yield elem
+
 
 @dataclass
 class DatasetConfig(BaseConfig):
@@ -390,7 +538,7 @@ class DatasetConfig(BaseConfig):
     # Some datasets have sub tasks (eg. GLUE)
     task: str = None
 
-    def make(self, split: Split, download: bool = True, **kwargs) -> "Dataset" :
+    def make(self, split: Split, download: bool = True, distributed = False, acceptance_fn: Tuple[Any, bool] = DEFAULT_DATASET_ACCEPTANCE_FN, **kwargs) -> Dataset:
         """Make
 
         Look for the dataset name, downloads if required and returns
@@ -427,13 +575,42 @@ class DatasetConfig(BaseConfig):
             return dataset(root=root, train=split is Split.TRAIN, download=download, **kwargs)
         except AttributeError: pass
 
+        if TORCHTEXT_DATASETS_AVAILABE:
+            try: # torchtext strategy
+                locations += ['torchtext datasets']
+                dataset_class = getattr(ttd, self.name) #TODO: load case independent use torchtext.datasets.DATASETS
+                dataset = dataset_class(self.root, split = split.value, **kwargs)
+                size = getattr(getattr(ttd, self.name.lower()), "NUM_LINES")["valid" if split == Split.VALID else split.value]
+                if distributed:
+                    return DistributedIterableSizeableDataset(iter(dataset), dist.get_local_rank(), dist.get_world_size(), iter_len=size, acceptance_fn=acceptance_fn)
+                return IterableSizeableDataset(iter(dataset), size, acceptance_fn=acceptance_fn)
+            except AttributeError: pass
+
         if HUGGINGFACE_DATASETS_AVAILABLE:
             locations += ["huggingface datasets"]
             try: # huggingface strategy
                 download = DownloadMode.REUSE_DATASET_IF_EXISTS
-                if self.task is not None:
-                    return load_dataset(self.name, self.task, download_mode=download, cache_dir=root, **kwargs)
-                return load_dataset(self.name, download_mode=download, cache_dir=root, **kwargs)
+                split_str = split.value
+
+                # if self.task is not None:
+                dataset = load_dataset(self.name, name = self.task, download_mode=download, cache_dir=self.root, **kwargs)
+                # else:
+                #     dataset = load_dataset(self.name, download_mode=download, cache_dir=self.root, **kwargs)
+
+                if Split.TEST not in dataset: # handle special case of no TEST split
+                    logging.warning(f'Dataset {self.name} does not have a TEST split, splitting dataset into 80/20 for TRAIN and TEST subsets')
+                    if split == Split.TRAIN:
+                        split_str = 'train[:80%]'
+                    elif split == Split.TEST:
+                        split_str = 'train[-20%:]'
+                else:
+                    return dataset[split_str]
+                # if self.task is not None:
+                return load_dataset(self.name, name = self.task, download_mode=download, cache_dir=self.root, split = split_str, **kwargs)
+                # else:
+                #     dataset = load_dataset(self.name, download_mode=download, cache_dir=self.root, split = split_str, **kwargs)
+                
+                        
             except FileNotFoundError: pass
 
         logging.fatal(f"Could not find dataset {self.name}{f' with task {self.task}' if self.task else ''} in the default locations, looked in {', '.join(locations)}.")
@@ -447,4 +624,6 @@ __all__ = [
     LoaderConfig,
     OptimizerConfig,
     SchedulerConfig,
+    IterableSizeableDataset,
+    DistributedIterableSizeableDataset
 ]

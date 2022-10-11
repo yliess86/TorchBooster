@@ -10,9 +10,10 @@ from __future__ import annotations
 from torch.utils.data import (Dataset, DistributedSampler, RandomSampler, Sampler, SequentialSampler)
 from torch import distributed as dist
 from torch import multiprocessing as mp
-from typing import (Any, Callable)
+from typing import (Any, Callable, Tuple)
 
 import os
+import logging
 import socket
 import torch
 
@@ -36,6 +37,23 @@ def get_local_rank() -> int:
         raise ValueError("LOCAL_PROCESS_GROUP is None")
     return dist.get_rank(group=LOCAL_PROCESS_GROUP)
 
+
+def gather(tensor: torch.Tensor, tensor_list: List[torch.Tensor] = None):
+    """gather
+
+    Parameters
+    ----------
+    tensor : torch.Tensor
+        The tensor to gather
+    tensor_list : List[torch.Tensor], optional
+        The tensor list to gather into, set to None in non-primary processes, set to a List of tensors of size dist.get_world_size()
+        with each tensor has the same dim as `tensor`, by default None
+    """
+
+    if is_primary():
+        dist.gather(tensor, tensor_list)
+    else:
+        dist.gather(tensor, dst=0)
 
 def is_primary() -> bool:
     """Is Primary Device"""
@@ -120,6 +138,7 @@ def launch(
         fn(*args)
         return
 
+    logging.info(f'Launching in distributed mode')
     if "OMP_NUM_THREADS" not in os.environ:
         os.environ["OMP_NUM_THREADS"] = "1"
 
