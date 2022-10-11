@@ -10,7 +10,7 @@ from __future__ import annotations
 from torch.utils.data import (Dataset, DistributedSampler, RandomSampler, Sampler, SequentialSampler)
 from torch import distributed as dist
 from torch import multiprocessing as mp
-from typing import (Any, Callable, Tuple)
+from typing import (Any, Callable, List, Tuple)
 
 import os
 import logging
